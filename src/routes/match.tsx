@@ -377,7 +377,7 @@ function MatchInner({
           subject: `${won ? "WON" : tied ? "TIED" : "LOST"} vs ${fixture.opponent}`,
           body: `Final: ${myInn.runs}/${myInn.wickets} (${(myInn.balls/6).toFixed(1)} ov) vs ${oppInn.runs}/${oppInn.wickets} (${(oppInn.balls/6).toFixed(1)} ov). You: ${matchSummary.runs}${matchSummary.out ? "" : "*"} (${matchSummary.balls})${matchSummary.ballsBowled > 0 ? ` · ${matchSummary.wickets}/${matchSummary.runsConceded}` : ""}.${matchSummary.manOfMatch ? " Player of the Match!" : ""}`,
           read: false,
-          type: (matchSummary.manOfMatch ? "milestone" : "system") as const,
+          type: (matchSummary.manOfMatch ? "milestone" : "system") as "milestone" | "system",
         },
         ...save.inbox,
       ].slice(0, 50),
