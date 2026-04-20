@@ -9,54 +9,54 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as UiRouteImport } from './routes/ui'
-import { Route as TechStackRouteImport } from './routes/tech-stack'
-import { Route as SimulationRouteImport } from './routes/simulation'
-import { Route as ProgressionRouteImport } from './routes/progression'
-import { Route as PlayerCreationRouteImport } from './routes/player-creation'
-import { Route as MechanicsRouteImport } from './routes/mechanics'
-import { Route as LeaguesRouteImport } from './routes/leagues'
-import { Route as DynamicsRouteImport } from './routes/dynamics'
+import { Route as TrainingRouteImport } from './routes/training'
+import { Route as StatsRouteImport } from './routes/stats'
+import { Route as NewRouteImport } from './routes/new'
+import { Route as MatchRouteImport } from './routes/match'
+import { Route as InboxRouteImport } from './routes/inbox'
+import { Route as HubRouteImport } from './routes/hub'
+import { Route as FixturesRouteImport } from './routes/fixtures'
+import { Route as CareerEndRouteImport } from './routes/career-end'
 import { Route as IndexRouteImport } from './routes/index'
 
-const UiRoute = UiRouteImport.update({
-  id: '/ui',
-  path: '/ui',
+const TrainingRoute = TrainingRouteImport.update({
+  id: '/training',
+  path: '/training',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TechStackRoute = TechStackRouteImport.update({
-  id: '/tech-stack',
-  path: '/tech-stack',
+const StatsRoute = StatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SimulationRoute = SimulationRouteImport.update({
-  id: '/simulation',
-  path: '/simulation',
+const NewRoute = NewRouteImport.update({
+  id: '/new',
+  path: '/new',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProgressionRoute = ProgressionRouteImport.update({
-  id: '/progression',
-  path: '/progression',
+const MatchRoute = MatchRouteImport.update({
+  id: '/match',
+  path: '/match',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PlayerCreationRoute = PlayerCreationRouteImport.update({
-  id: '/player-creation',
-  path: '/player-creation',
+const InboxRoute = InboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MechanicsRoute = MechanicsRouteImport.update({
-  id: '/mechanics',
-  path: '/mechanics',
+const HubRoute = HubRouteImport.update({
+  id: '/hub',
+  path: '/hub',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LeaguesRoute = LeaguesRouteImport.update({
-  id: '/leagues',
-  path: '/leagues',
+const FixturesRoute = FixturesRouteImport.update({
+  id: '/fixtures',
+  path: '/fixtures',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DynamicsRoute = DynamicsRouteImport.update({
-  id: '/dynamics',
-  path: '/dynamics',
+const CareerEndRoute = CareerEndRouteImport.update({
+  id: '/career-end',
+  path: '/career-end',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -67,142 +67,142 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/dynamics': typeof DynamicsRoute
-  '/leagues': typeof LeaguesRoute
-  '/mechanics': typeof MechanicsRoute
-  '/player-creation': typeof PlayerCreationRoute
-  '/progression': typeof ProgressionRoute
-  '/simulation': typeof SimulationRoute
-  '/tech-stack': typeof TechStackRoute
-  '/ui': typeof UiRoute
+  '/career-end': typeof CareerEndRoute
+  '/fixtures': typeof FixturesRoute
+  '/hub': typeof HubRoute
+  '/inbox': typeof InboxRoute
+  '/match': typeof MatchRoute
+  '/new': typeof NewRoute
+  '/stats': typeof StatsRoute
+  '/training': typeof TrainingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/dynamics': typeof DynamicsRoute
-  '/leagues': typeof LeaguesRoute
-  '/mechanics': typeof MechanicsRoute
-  '/player-creation': typeof PlayerCreationRoute
-  '/progression': typeof ProgressionRoute
-  '/simulation': typeof SimulationRoute
-  '/tech-stack': typeof TechStackRoute
-  '/ui': typeof UiRoute
+  '/career-end': typeof CareerEndRoute
+  '/fixtures': typeof FixturesRoute
+  '/hub': typeof HubRoute
+  '/inbox': typeof InboxRoute
+  '/match': typeof MatchRoute
+  '/new': typeof NewRoute
+  '/stats': typeof StatsRoute
+  '/training': typeof TrainingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/dynamics': typeof DynamicsRoute
-  '/leagues': typeof LeaguesRoute
-  '/mechanics': typeof MechanicsRoute
-  '/player-creation': typeof PlayerCreationRoute
-  '/progression': typeof ProgressionRoute
-  '/simulation': typeof SimulationRoute
-  '/tech-stack': typeof TechStackRoute
-  '/ui': typeof UiRoute
+  '/career-end': typeof CareerEndRoute
+  '/fixtures': typeof FixturesRoute
+  '/hub': typeof HubRoute
+  '/inbox': typeof InboxRoute
+  '/match': typeof MatchRoute
+  '/new': typeof NewRoute
+  '/stats': typeof StatsRoute
+  '/training': typeof TrainingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/dynamics'
-    | '/leagues'
-    | '/mechanics'
-    | '/player-creation'
-    | '/progression'
-    | '/simulation'
-    | '/tech-stack'
-    | '/ui'
+    | '/career-end'
+    | '/fixtures'
+    | '/hub'
+    | '/inbox'
+    | '/match'
+    | '/new'
+    | '/stats'
+    | '/training'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/dynamics'
-    | '/leagues'
-    | '/mechanics'
-    | '/player-creation'
-    | '/progression'
-    | '/simulation'
-    | '/tech-stack'
-    | '/ui'
+    | '/career-end'
+    | '/fixtures'
+    | '/hub'
+    | '/inbox'
+    | '/match'
+    | '/new'
+    | '/stats'
+    | '/training'
   id:
     | '__root__'
     | '/'
-    | '/dynamics'
-    | '/leagues'
-    | '/mechanics'
-    | '/player-creation'
-    | '/progression'
-    | '/simulation'
-    | '/tech-stack'
-    | '/ui'
+    | '/career-end'
+    | '/fixtures'
+    | '/hub'
+    | '/inbox'
+    | '/match'
+    | '/new'
+    | '/stats'
+    | '/training'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DynamicsRoute: typeof DynamicsRoute
-  LeaguesRoute: typeof LeaguesRoute
-  MechanicsRoute: typeof MechanicsRoute
-  PlayerCreationRoute: typeof PlayerCreationRoute
-  ProgressionRoute: typeof ProgressionRoute
-  SimulationRoute: typeof SimulationRoute
-  TechStackRoute: typeof TechStackRoute
-  UiRoute: typeof UiRoute
+  CareerEndRoute: typeof CareerEndRoute
+  FixturesRoute: typeof FixturesRoute
+  HubRoute: typeof HubRoute
+  InboxRoute: typeof InboxRoute
+  MatchRoute: typeof MatchRoute
+  NewRoute: typeof NewRoute
+  StatsRoute: typeof StatsRoute
+  TrainingRoute: typeof TrainingRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/ui': {
-      id: '/ui'
-      path: '/ui'
-      fullPath: '/ui'
-      preLoaderRoute: typeof UiRouteImport
+    '/training': {
+      id: '/training'
+      path: '/training'
+      fullPath: '/training'
+      preLoaderRoute: typeof TrainingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/tech-stack': {
-      id: '/tech-stack'
-      path: '/tech-stack'
-      fullPath: '/tech-stack'
-      preLoaderRoute: typeof TechStackRouteImport
+    '/stats': {
+      id: '/stats'
+      path: '/stats'
+      fullPath: '/stats'
+      preLoaderRoute: typeof StatsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/simulation': {
-      id: '/simulation'
-      path: '/simulation'
-      fullPath: '/simulation'
-      preLoaderRoute: typeof SimulationRouteImport
+    '/new': {
+      id: '/new'
+      path: '/new'
+      fullPath: '/new'
+      preLoaderRoute: typeof NewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/progression': {
-      id: '/progression'
-      path: '/progression'
-      fullPath: '/progression'
-      preLoaderRoute: typeof ProgressionRouteImport
+    '/match': {
+      id: '/match'
+      path: '/match'
+      fullPath: '/match'
+      preLoaderRoute: typeof MatchRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/player-creation': {
-      id: '/player-creation'
-      path: '/player-creation'
-      fullPath: '/player-creation'
-      preLoaderRoute: typeof PlayerCreationRouteImport
+    '/inbox': {
+      id: '/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof InboxRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/mechanics': {
-      id: '/mechanics'
-      path: '/mechanics'
-      fullPath: '/mechanics'
-      preLoaderRoute: typeof MechanicsRouteImport
+    '/hub': {
+      id: '/hub'
+      path: '/hub'
+      fullPath: '/hub'
+      preLoaderRoute: typeof HubRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/leagues': {
-      id: '/leagues'
-      path: '/leagues'
-      fullPath: '/leagues'
-      preLoaderRoute: typeof LeaguesRouteImport
+    '/fixtures': {
+      id: '/fixtures'
+      path: '/fixtures'
+      fullPath: '/fixtures'
+      preLoaderRoute: typeof FixturesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dynamics': {
-      id: '/dynamics'
-      path: '/dynamics'
-      fullPath: '/dynamics'
-      preLoaderRoute: typeof DynamicsRouteImport
+    '/career-end': {
+      id: '/career-end'
+      path: '/career-end'
+      fullPath: '/career-end'
+      preLoaderRoute: typeof CareerEndRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -217,14 +217,14 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DynamicsRoute: DynamicsRoute,
-  LeaguesRoute: LeaguesRoute,
-  MechanicsRoute: MechanicsRoute,
-  PlayerCreationRoute: PlayerCreationRoute,
-  ProgressionRoute: ProgressionRoute,
-  SimulationRoute: SimulationRoute,
-  TechStackRoute: TechStackRoute,
-  UiRoute: UiRoute,
+  CareerEndRoute: CareerEndRoute,
+  FixturesRoute: FixturesRoute,
+  HubRoute: HubRoute,
+  InboxRoute: InboxRoute,
+  MatchRoute: MatchRoute,
+  NewRoute: NewRoute,
+  StatsRoute: StatsRoute,
+  TrainingRoute: TrainingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

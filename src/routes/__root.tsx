@@ -29,18 +29,18 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Pro Cricket Career 26 — Technical Design Document" },
+      { title: "Pro Cricket Career 26 — Career Mode Cricket Game" },
       {
         name: "description",
         content:
-          "A realism-first cricket career mode design document inspired by Big Ant Cricket 24/26.",
+          "An interactive single-player cricket career game. Choose your shot ball-by-ball, train, and rise from club to international.",
       },
       { name: "author", content: "Pro Cricket Career 26" },
-      { property: "og:title", content: "Pro Cricket Career 26 — Technical Design Document" },
+      { property: "og:title", content: "Pro Cricket Career 26 — Cricket Career Mode" },
       {
         property: "og:description",
         content:
-          "Deep dive into a realism-first cricket career mode: creation, progression, leagues, dynamics, mechanics, simulation.",
+          "Bat, bowl, and become a legend. A choose-your-shot cricket career game.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
