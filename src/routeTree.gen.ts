@@ -9,12 +9,48 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TrainingRouteImport } from './routes/training'
+import { Route as StatsRouteImport } from './routes/stats'
 import { Route as NewRouteImport } from './routes/new'
+import { Route as InboxRouteImport } from './routes/inbox'
+import { Route as HubRouteImport } from './routes/hub'
+import { Route as FixturesRouteImport } from './routes/fixtures'
+import { Route as CareerEndRouteImport } from './routes/career-end'
 import { Route as IndexRouteImport } from './routes/index'
 
+const TrainingRoute = TrainingRouteImport.update({
+  id: '/training',
+  path: '/training',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StatsRoute = StatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NewRoute = NewRouteImport.update({
   id: '/new',
   path: '/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InboxRoute = InboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HubRoute = HubRouteImport.update({
+  id: '/hub',
+  path: '/hub',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FixturesRoute = FixturesRouteImport.update({
+  id: '/fixtures',
+  path: '/fixtures',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CareerEndRoute = CareerEndRouteImport.update({
+  id: '/career-end',
+  path: '/career-end',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -25,37 +61,128 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/career-end': typeof CareerEndRoute
+  '/fixtures': typeof FixturesRoute
+  '/hub': typeof HubRoute
+  '/inbox': typeof InboxRoute
   '/new': typeof NewRoute
+  '/stats': typeof StatsRoute
+  '/training': typeof TrainingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/career-end': typeof CareerEndRoute
+  '/fixtures': typeof FixturesRoute
+  '/hub': typeof HubRoute
+  '/inbox': typeof InboxRoute
   '/new': typeof NewRoute
+  '/stats': typeof StatsRoute
+  '/training': typeof TrainingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/career-end': typeof CareerEndRoute
+  '/fixtures': typeof FixturesRoute
+  '/hub': typeof HubRoute
+  '/inbox': typeof InboxRoute
   '/new': typeof NewRoute
+  '/stats': typeof StatsRoute
+  '/training': typeof TrainingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/new'
+  fullPaths:
+    | '/'
+    | '/career-end'
+    | '/fixtures'
+    | '/hub'
+    | '/inbox'
+    | '/new'
+    | '/stats'
+    | '/training'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/new'
-  id: '__root__' | '/' | '/new'
+  to:
+    | '/'
+    | '/career-end'
+    | '/fixtures'
+    | '/hub'
+    | '/inbox'
+    | '/new'
+    | '/stats'
+    | '/training'
+  id:
+    | '__root__'
+    | '/'
+    | '/career-end'
+    | '/fixtures'
+    | '/hub'
+    | '/inbox'
+    | '/new'
+    | '/stats'
+    | '/training'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CareerEndRoute: typeof CareerEndRoute
+  FixturesRoute: typeof FixturesRoute
+  HubRoute: typeof HubRoute
+  InboxRoute: typeof InboxRoute
   NewRoute: typeof NewRoute
+  StatsRoute: typeof StatsRoute
+  TrainingRoute: typeof TrainingRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/training': {
+      id: '/training'
+      path: '/training'
+      fullPath: '/training'
+      preLoaderRoute: typeof TrainingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stats': {
+      id: '/stats'
+      path: '/stats'
+      fullPath: '/stats'
+      preLoaderRoute: typeof StatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/new': {
       id: '/new'
       path: '/new'
       fullPath: '/new'
       preLoaderRoute: typeof NewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inbox': {
+      id: '/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof InboxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hub': {
+      id: '/hub'
+      path: '/hub'
+      fullPath: '/hub'
+      preLoaderRoute: typeof HubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fixtures': {
+      id: '/fixtures'
+      path: '/fixtures'
+      fullPath: '/fixtures'
+      preLoaderRoute: typeof FixturesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/career-end': {
+      id: '/career-end'
+      path: '/career-end'
+      fullPath: '/career-end'
+      preLoaderRoute: typeof CareerEndRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -70,7 +197,13 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CareerEndRoute: CareerEndRoute,
+  FixturesRoute: FixturesRoute,
+  HubRoute: HubRoute,
+  InboxRoute: InboxRoute,
   NewRoute: NewRoute,
+  StatsRoute: StatsRoute,
+  TrainingRoute: TrainingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
