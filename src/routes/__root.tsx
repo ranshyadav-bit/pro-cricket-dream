@@ -36,7 +36,7 @@ export const Route = createRootRoute({
           "An interactive single-player cricket career game. Choose your shot ball-by-ball, train, and rise from club to international.",
       },
       { name: "author", content: "Pro Cricket Career 26" },
-      { property: "og:title", content: "Pro Cricket Career 26 — Cricket Career Mode" },
+      { property: "og:title", content: "Pro Cricket Career 26 — Career Mode Cricket Game" },
       {
         property: "og:description",
         content:
@@ -44,6 +44,12 @@ export const Route = createRootRoute({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Pro Cricket Career 26 — Career Mode Cricket Game" },
+      { name: "description", content: "Cricket!" },
+      { property: "og:description", content: "Cricket!" },
+      { name: "twitter:description", content: "Cricket!" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4b62dd92-86eb-4d9f-bc35-c089262b073a/id-preview-c9d3d0d8--6bab2c7a-226f-4246-9f51-82a0b8dc1dce.lovable.app-1776680636378.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4b62dd92-86eb-4d9f-bc35-c089262b073a/id-preview-c9d3d0d8--6bab2c7a-226f-4246-9f51-82a0b8dc1dce.lovable.app-1776680636378.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
