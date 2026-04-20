@@ -3,9 +3,8 @@ import { DocLayout } from "@/components/DocLayout";
 import { Card, Grid, PageHeader, Section } from "@/components/doc/Section";
 
 export const Route = createFileRoute("/simulation")({
-  command: undefined as never,
   component: SimulationPage,
-} as never);
+});
 
 function SimulationPage() {
   return (

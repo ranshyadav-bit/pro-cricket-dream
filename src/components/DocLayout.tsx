@@ -13,7 +13,7 @@ const sections = [
   { to: "/tech-stack", label: "09 — Tech Stack", short: "Tech" },
 ] as const;
 
-export function DocLayout() {
+export function DocLayout({ children }: { children?: React.ReactNode }) {
   const location = useLocation();
   const [open, setOpen] = useState(false);
 
@@ -82,9 +82,7 @@ export function DocLayout() {
         </aside>
 
         {/* Main */}
-        <main className="min-w-0 flex-1">
-          <Outlet />
-        </main>
+        <main className="min-w-0 flex-1">{children ?? <Outlet />}</main>
       </div>
     </div>
   );

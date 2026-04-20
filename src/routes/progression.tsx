@@ -36,8 +36,6 @@ const skills = [
   },
 ];
 
-export const Route2 = null;
-
 function ProgressionPage() {
   return (
     <DocLayout>
