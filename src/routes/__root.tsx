@@ -29,19 +29,28 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Pro Cricket Career 26 — Technical Design Document" },
+      {
+        name: "description",
+        content:
+          "A realism-first cricket career mode design document inspired by Big Ant Cricket 24/26.",
+      },
+      { name: "author", content: "Pro Cricket Career 26" },
+      { property: "og:title", content: "Pro Cricket Career 26 — Technical Design Document" },
+      {
+        property: "og:description",
+        content:
+          "Deep dive into a realism-first cricket career mode: creation, progression, leagues, dynamics, mechanics, simulation.",
+      },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
       {
         rel: "stylesheet",
-        href: appCss,
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap",
       },
     ],
   }),
