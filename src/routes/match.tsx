@@ -12,6 +12,8 @@ import {
   resolveBowling,
 } from "@/game/engine";
 import { battingRating, bowlingRating } from "@/game/rating";
+import { generateClubSquad, getNationSquad, getOppositionSquad } from "@/game/rosters";
+import type { RosterPlayer } from "@/game/rosters";
 import type {
   BallOutcome,
   DeliveryType,
