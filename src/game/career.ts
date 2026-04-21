@@ -8,6 +8,8 @@ import type {
 } from "./types";
 import { clamp, overallRating, trainSkill } from "./rating";
 import { emptyStats, generateFixtures, makeId } from "./factory";
+import { advanceLeagues, createLeaguesState } from "./leagues";
+import { generateAnnualOffers } from "./contracts";
 
 // --- Stat helpers ---
 
