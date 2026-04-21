@@ -124,6 +124,33 @@ function MatchInner({
   const myTeam = save.player.team;
   const opp = fixture.opponent;
 
+  // Real squads for international/league teams; generated names for club tier
+  const oppSquad = useMemo<RosterPlayer[]>(() => {
+    const real = getOppositionSquad({
+      competition: fixture.competition,
+      opponent: opp,
+      format: fixture.format,
+      nation: save.player.nation,
+    });
+    return real ?? generateClubSquad(save.player.nation, opp, 11);
+  }, [fixture.competition, fixture.format, opp, save.player.nation]);
+
+  const mySquad = useMemo<RosterPlayer[]>(() => {
+    if (save.player.tier === "International") {
+      const fmt = fixture.format === "Test" ? "Test" : fixture.format === "ODI" ? "ODI" : "T20";
+      return [
+        { name: save.player.name, role: save.player.role, rating: 75 },
+        ...getNationSquad(save.player.nation, fmt).filter((p) => p.name !== save.player.name).slice(0, 10),
+      ];
+    }
+    // Try matching league squad
+    const real = getOppositionSquad({ competition: fixture.competition, opponent: myTeam, format: fixture.format, nation: save.player.nation });
+    if (real) {
+      return [{ name: save.player.name, role: save.player.role, rating: 75 }, ...real.filter((p) => p.name !== save.player.name).slice(0, 10)];
+    }
+    return [{ name: save.player.name, role: save.player.role, rating: 75 }, ...generateClubSquad(save.player.nation, myTeam, 10)];
+  }, [save.player, myTeam, fixture.competition, fixture.format]);
+
   const [phase, setPhase] = useState<Phase>("intro");
   // We're either: bat 1st then bowl OR bowl 1st then bat
   const [tossWon] = useState(() => Math.random() < 0.5);
