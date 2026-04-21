@@ -29,14 +29,14 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Pro Cricket Career 26 — Career Mode Cricket Game" },
+      { title: "Cricket Learning to Teach you!" },
       {
         name: "description",
         content:
           "An interactive single-player cricket career game. Choose your shot ball-by-ball, train, and rise from club to international.",
       },
       { name: "author", content: "Pro Cricket Career 26" },
-      { property: "og:title", content: "Pro Cricket Career 26 — Career Mode Cricket Game" },
+      { property: "og:title", content: "Cricket Learning to Teach you!" },
       {
         property: "og:description",
         content:
@@ -44,7 +44,7 @@ export const Route = createRootRoute({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Pro Cricket Career 26 — Career Mode Cricket Game" },
+      { name: "twitter:title", content: "Cricket Learning to Teach you!" },
       { name: "description", content: "Cricket!" },
       { property: "og:description", content: "Cricket!" },
       { name: "twitter:description", content: "Cricket!" },
