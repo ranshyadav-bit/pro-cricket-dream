@@ -30,12 +30,13 @@ function LeaguesPage() {
     else setSave(s);
   }, [navigate]);
 
-  if (!save || !save.leagues) return null;
+  const season = save?.leagues?.seasons[active];
+  const standings = useMemo(() => (season ? getStandings(season) : []), [season]);
+  const orange = useMemo(() => (season ? getOrangeCap(season, 10) : []), [season]);
+  const purple = useMemo(() => (season ? getPurpleCap(season, 10) : []), [season]);
 
-  const season = save.leagues.seasons[active];
-  const standings = useMemo(() => getStandings(season), [season]);
-  const orange = useMemo(() => getOrangeCap(season, 10), [season]);
-  const purple = useMemo(() => getPurpleCap(season, 10), [season]);
+  if (!save || !save.leagues || !season) return null;
+
   const teams = LEAGUE_BY_ID[active];
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? id;
   const teamShort = (id: string) => teams.find((t) => t.id === id)?.short ?? id;
