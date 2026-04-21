@@ -35,20 +35,21 @@ function Inbox() {
   const opened = save.inbox.find((m) => m.id === openId);
 
   function handleAccept(msg: InboxMessage) {
-    if (!msg.offer) return;
+    if (!msg.offer || !save) return;
+    const cur = save;
     const o = msg.offer;
     const earnings = o.basePrice + o.signingBonus;
     const next: SaveGame = {
-      ...save,
+      ...cur,
       player: {
-        ...save.player,
+        ...cur.player,
         team: o.fromTeam,
         tier: o.tier,
-        cash: save.player.cash + earnings,
-        morale: Math.min(100, save.player.morale + 8),
+        cash: cur.player.cash + earnings,
+        morale: Math.min(100, cur.player.morale + 8),
       },
       contractValue: earnings,
-      inbox: save.inbox.map((m) =>
+      inbox: cur.inbox.map((m) =>
         m.id === msg.id
           ? {
               ...m,
@@ -63,10 +64,11 @@ function Inbox() {
   }
 
   function handleDecline(msg: InboxMessage) {
-    if (!msg.offer) return;
+    if (!msg.offer || !save) return;
+    const cur = save;
     const next: SaveGame = {
-      ...save,
-      inbox: save.inbox.map((m) =>
+      ...cur,
+      inbox: cur.inbox.map((m) =>
         m.id === msg.id
           ? {
               ...m,
