@@ -100,6 +100,19 @@ export interface InboxMessage {
   body: string;
   read: boolean;
   type: "scout" | "coach" | "contract" | "milestone" | "press" | "system";
+  // Optional structured offer payload for contract messages
+  offer?: {
+    id: string;
+    fromTeam: string;
+    league?: "IPL" | "BBL" | "PSL" | "County";
+    format: "T20" | "ODI" | "Test" | "Multi";
+    tier: Tier;
+    basePrice: number;
+    signingBonus: number;
+    durationYears: number;
+    accepted?: boolean;
+    declined?: boolean;
+  };
 }
 
 export interface SaveGame {
@@ -116,6 +129,12 @@ export interface SaveGame {
   lastPlayedAt: number;
   // Bowling — store “best figures” from career
   notesUnlocked: string[];
+  // Parallel league sim (IPL/BBL/PSL/County). Created lazily on first read.
+  leagues?: import("./leagues").LeaguesState;
+  // Tracks years we've already produced contract offers for (avoid duplicates)
+  offerYears?: number[];
+  // Active contract value (in $k) — bumped when offers accepted
+  contractValue?: number;
 }
 
 // Match-screen types

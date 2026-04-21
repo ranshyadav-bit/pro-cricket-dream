@@ -1,6 +1,16 @@
 import type { SaveGame } from "./types";
+import { createLeaguesState } from "./leagues";
 
 const SAVE_KEY = "pcc26-save-v1";
+
+function ensureDerived(save: SaveGame): SaveGame {
+  if (!save.leagues) {
+    save.leagues = createLeaguesState(save.year);
+  }
+  if (!save.offerYears) save.offerYears = [];
+  if (typeof save.contractValue !== "number") save.contractValue = 0;
+  return save;
+}
 
 export function loadSave(): SaveGame | null {
   if (typeof window === "undefined") return null;
@@ -9,7 +19,7 @@ export function loadSave(): SaveGame | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as SaveGame;
     if (parsed.version !== 1) return null;
-    return parsed;
+    return ensureDerived(parsed);
   } catch {
     return null;
   }
@@ -17,6 +27,7 @@ export function loadSave(): SaveGame | null {
 
 export function writeSave(save: SaveGame): void {
   if (typeof window === "undefined") return;
+  ensureDerived(save);
   save.lastPlayedAt = Date.now();
   localStorage.setItem(SAVE_KEY, JSON.stringify(save));
 }

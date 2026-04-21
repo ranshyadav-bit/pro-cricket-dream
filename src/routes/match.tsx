@@ -12,6 +12,8 @@ import {
   resolveBowling,
 } from "@/game/engine";
 import { battingRating, bowlingRating } from "@/game/rating";
+import { generateClubSquad, getNationSquad, getOppositionSquad } from "@/game/rosters";
+import type { RosterPlayer } from "@/game/rosters";
 import type {
   BallOutcome,
   DeliveryType,
@@ -121,6 +123,33 @@ function MatchInner({
 
   const myTeam = save.player.team;
   const opp = fixture.opponent;
+
+  // Real squads for international/league teams; generated names for club tier
+  const oppSquad = useMemo<RosterPlayer[]>(() => {
+    const real = getOppositionSquad({
+      competition: fixture.competition,
+      opponent: opp,
+      format: fixture.format,
+      nation: save.player.nation,
+    });
+    return real ?? generateClubSquad(save.player.nation, opp, 11);
+  }, [fixture.competition, fixture.format, opp, save.player.nation]);
+
+  const mySquad = useMemo<RosterPlayer[]>(() => {
+    if (save.player.tier === "International") {
+      const fmt = fixture.format === "Test" ? "Test" : fixture.format === "ODI" ? "ODI" : "T20";
+      return [
+        { name: save.player.name, role: save.player.role, rating: 75 },
+        ...getNationSquad(save.player.nation, fmt).filter((p) => p.name !== save.player.name).slice(0, 10),
+      ];
+    }
+    // Try matching league squad
+    const real = getOppositionSquad({ competition: fixture.competition, opponent: myTeam, format: fixture.format, nation: save.player.nation });
+    if (real) {
+      return [{ name: save.player.name, role: save.player.role, rating: 75 }, ...real.filter((p) => p.name !== save.player.name).slice(0, 10)];
+    }
+    return [{ name: save.player.name, role: save.player.role, rating: 75 }, ...generateClubSquad(save.player.nation, myTeam, 10)];
+  }, [save.player, myTeam, fixture.competition, fixture.format]);
 
   const [phase, setPhase] = useState<Phase>("intro");
   // We're either: bat 1st then bowl OR bowl 1st then bat
@@ -506,6 +535,10 @@ function MatchInner({
             myInn={myInn} oppInn={oppInn} myBowlInn={myBowlInn}
             playerName={player.name}
           />
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <SquadList title={myTeam} squad={mySquad} highlight={player.name} />
+            <SquadList title={opp} squad={oppSquad} />
+          </div>
           <div className="mt-4 flex gap-3">
             <button
               onClick={() => navigate({ to: "/hub" })}
@@ -722,6 +755,22 @@ function ResultBlock({ myTeam, opp, myInn, oppInn, myBowlInn, playerName }: {
         <StatBox label="Overs" value={`${Math.floor(myBowlInn.playerBallsBowled/6)}.${myBowlInn.playerBallsBowled%6}`} />
         <StatBox label="Played" value={playerName.split(" ")[0]} />
       </div>
+    </div>
+  );
+}
+
+function SquadList({ title, squad, highlight }: { title: string; squad: RosterPlayer[]; highlight?: string }) {
+  return (
+    <div className="rounded-md border border-border bg-background/30 p-3">
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{title} XI</p>
+      <ul className="mt-2 space-y-1 text-xs">
+        {squad.map((p) => (
+          <li key={p.name} className={`flex items-baseline justify-between gap-2 ${p.name === highlight ? "text-primary" : "text-foreground"}`}>
+            <span><span className="text-display">{p.name}</span> <span className="text-[10px] text-muted-foreground">· {p.role}</span></span>
+            <span className="text-muted-foreground">{p.rating}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

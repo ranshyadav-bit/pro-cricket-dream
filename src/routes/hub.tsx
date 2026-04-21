@@ -139,6 +139,12 @@ function Hub() {
             >
               View Calendar
             </Link>
+            <Link
+              to="/leagues"
+              className="rounded-md border border-accent/40 bg-accent/10 px-4 py-2.5 text-center text-display text-sm text-accent hover:bg-accent/20"
+            >
+              World Leagues 🏆
+            </Link>
           </div>
         </GamePanel>
       </div>

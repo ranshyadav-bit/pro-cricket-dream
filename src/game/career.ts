@@ -8,6 +8,8 @@ import type {
 } from "./types";
 import { clamp, overallRating, trainSkill } from "./rating";
 import { emptyStats, generateFixtures, makeId } from "./factory";
+import { advanceLeagues, createLeaguesState } from "./leagues";
+import { generateAnnualOffers } from "./contracts";
 
 // --- Stat helpers ---
 
@@ -314,6 +316,8 @@ export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean } = {}): 
     next.seasonStats = emptyStats();
     next.fixtures = generateFixtures(next.year, next.player.tier);
     next.player = { ...next.player, age: Math.round(next.player.age + 0.01) };
+    // Reset leagues for new year
+    next.leagues = createLeaguesState(next.year);
     messages.push({
       id: makeId(),
       week: 1,
@@ -324,6 +328,38 @@ export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean } = {}): 
       read: false,
       type: "system",
     });
+  }
+
+  // Advance parallel leagues to current week
+  if (!next.leagues) next.leagues = createLeaguesState(next.year);
+  next.leagues = advanceLeagues(next.leagues, next.week, next.year);
+
+  // Annual contract offers — fire once per year around Week 48 (auction window)
+  if (!next.offerYears) next.offerYears = [];
+  if (next.week >= 48 && !next.offerYears.includes(next.year) && !next.player.retired) {
+    const offers = generateAnnualOffers(next);
+    if (offers.length > 0) {
+      next.offerYears = [...next.offerYears, next.year];
+      for (const o of offers) {
+        messages.push({
+          id: makeId(),
+          week: next.week,
+          year: next.year,
+          from: o.fromTeam,
+          subject: `Contract offer · ${o.league ?? o.format} · $${(o.basePrice + o.signingBonus).toLocaleString()}k`,
+          body:
+            `${o.fromTeam} have made a formal offer.\n\n` +
+            `Format: ${o.format}${o.league ? " (" + o.league + ")" : ""}\n` +
+            `Base price: $${o.basePrice.toLocaleString()}k\n` +
+            `Signing bonus: $${o.signingBonus.toLocaleString()}k\n` +
+            `Length: ${o.durationYears} year${o.durationYears > 1 ? "s" : ""}\n\n` +
+            `Open this message in your inbox to accept or decline.`,
+          read: false,
+          type: "contract",
+          offer: { ...o },
+        });
+      }
+    }
   }
 
   // Retirement check — age 35+ with declining fitness

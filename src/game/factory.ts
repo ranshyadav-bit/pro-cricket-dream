@@ -8,6 +8,7 @@ import type {
   SaveGame,
   Skills,
 } from "./types";
+import { createLeaguesState } from "./leagues";
 
 const NATION_CLUBS: Record<Nation, string[]> = {
   Australia: ["Sydney Strikers CC", "Melbourne Suburban CC", "Perth Coastal CC"],
@@ -206,6 +207,9 @@ export function newCareer(input: {
     createdAt: Date.now(),
     lastPlayedAt: Date.now(),
     notesUnlocked: [],
+    leagues: createLeaguesState(2026),
+    offerYears: [],
+    contractValue: 0,
   };
   return save;
 }
