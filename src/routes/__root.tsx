@@ -29,14 +29,14 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Cricket Learning to Teach you!" },
+      { title: "Maths Learning - SPARX" },
       {
         name: "description",
         content:
           "An interactive single-player cricket career game. Choose your shot ball-by-ball, train, and rise from club to international.",
       },
       { name: "author", content: "Pro Cricket Career 26" },
-      { property: "og:title", content: "Cricket Learning to Teach you!" },
+      { property: "og:title", content: "Maths Learning - SPARX" },
       {
         property: "og:description",
         content:
@@ -44,12 +44,12 @@ export const Route = createRootRoute({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Cricket Learning to Teach you!" },
-      { name: "description", content: "Cricket!" },
-      { property: "og:description", content: "Cricket!" },
-      { name: "twitter:description", content: "Cricket!" },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4b62dd92-86eb-4d9f-bc35-c089262b073a/id-preview-c9d3d0d8--6bab2c7a-226f-4246-9f51-82a0b8dc1dce.lovable.app-1776680636378.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4b62dd92-86eb-4d9f-bc35-c089262b073a/id-preview-c9d3d0d8--6bab2c7a-226f-4246-9f51-82a0b8dc1dce.lovable.app-1776680636378.png" },
+      { name: "twitter:title", content: "Maths Learning - SPARX" },
+      { name: "description", content: "Sparx Learning for Maths - Learn more:" },
+      { property: "og:description", content: "Sparx Learning for Maths - Learn more:" },
+      { name: "twitter:description", content: "Sparx Learning for Maths - Learn more:" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/800e8b57-891e-4826-8d3e-2fd2bf543701/id-preview-a1f74102--6bab2c7a-226f-4246-9f51-82a0b8dc1dce.lovable.app-1776754407852.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/800e8b57-891e-4826-8d3e-2fd2bf543701/id-preview-a1f74102--6bab2c7a-226f-4246-9f51-82a0b8dc1dce.lovable.app-1776754407852.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
