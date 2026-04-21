@@ -758,3 +758,19 @@ function ResultBlock({ myTeam, opp, myInn, oppInn, myBowlInn, playerName }: {
     </div>
   );
 }
+
+function SquadList({ title, squad, highlight }: { title: string; squad: RosterPlayer[]; highlight?: string }) {
+  return (
+    <div className="rounded-md border border-border bg-background/30 p-3">
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{title} XI</p>
+      <ul className="mt-2 space-y-1 text-xs">
+        {squad.map((p) => (
+          <li key={p.name} className={`flex items-baseline justify-between gap-2 ${p.name === highlight ? "text-primary" : "text-foreground"}`}>
+            <span><span className="text-display">{p.name}</span> <span className="text-[10px] text-muted-foreground">· {p.role}</span></span>
+            <span className="text-muted-foreground">{p.rating}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
