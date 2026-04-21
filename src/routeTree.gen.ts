@@ -13,6 +13,7 @@ import { Route as TrainingRouteImport } from './routes/training'
 import { Route as StatsRouteImport } from './routes/stats'
 import { Route as NewRouteImport } from './routes/new'
 import { Route as MatchRouteImport } from './routes/match'
+import { Route as LeaguesRouteImport } from './routes/leagues'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as HubRouteImport } from './routes/hub'
 import { Route as FixturesRouteImport } from './routes/fixtures'
@@ -37,6 +38,11 @@ const NewRoute = NewRouteImport.update({
 const MatchRoute = MatchRouteImport.update({
   id: '/match',
   path: '/match',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeaguesRoute = LeaguesRouteImport.update({
+  id: '/leagues',
+  path: '/leagues',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InboxRoute = InboxRouteImport.update({
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/fixtures': typeof FixturesRoute
   '/hub': typeof HubRoute
   '/inbox': typeof InboxRoute
+  '/leagues': typeof LeaguesRoute
   '/match': typeof MatchRoute
   '/new': typeof NewRoute
   '/stats': typeof StatsRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/fixtures': typeof FixturesRoute
   '/hub': typeof HubRoute
   '/inbox': typeof InboxRoute
+  '/leagues': typeof LeaguesRoute
   '/match': typeof MatchRoute
   '/new': typeof NewRoute
   '/stats': typeof StatsRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/fixtures': typeof FixturesRoute
   '/hub': typeof HubRoute
   '/inbox': typeof InboxRoute
+  '/leagues': typeof LeaguesRoute
   '/match': typeof MatchRoute
   '/new': typeof NewRoute
   '/stats': typeof StatsRoute
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/fixtures'
     | '/hub'
     | '/inbox'
+    | '/leagues'
     | '/match'
     | '/new'
     | '/stats'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/fixtures'
     | '/hub'
     | '/inbox'
+    | '/leagues'
     | '/match'
     | '/new'
     | '/stats'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/fixtures'
     | '/hub'
     | '/inbox'
+    | '/leagues'
     | '/match'
     | '/new'
     | '/stats'
@@ -141,6 +153,7 @@ export interface RootRouteChildren {
   FixturesRoute: typeof FixturesRoute
   HubRoute: typeof HubRoute
   InboxRoute: typeof InboxRoute
+  LeaguesRoute: typeof LeaguesRoute
   MatchRoute: typeof MatchRoute
   NewRoute: typeof NewRoute
   StatsRoute: typeof StatsRoute
@@ -175,6 +188,13 @@ declare module '@tanstack/react-router' {
       path: '/match'
       fullPath: '/match'
       preLoaderRoute: typeof MatchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leagues': {
+      id: '/leagues'
+      path: '/leagues'
+      fullPath: '/leagues'
+      preLoaderRoute: typeof LeaguesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inbox': {
@@ -221,6 +241,7 @@ const rootRouteChildren: RootRouteChildren = {
   FixturesRoute: FixturesRoute,
   HubRoute: HubRoute,
   InboxRoute: InboxRoute,
+  LeaguesRoute: LeaguesRoute,
   MatchRoute: MatchRoute,
   NewRoute: NewRoute,
   StatsRoute: StatsRoute,
