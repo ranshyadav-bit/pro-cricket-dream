@@ -535,6 +535,10 @@ function MatchInner({
             myInn={myInn} oppInn={oppInn} myBowlInn={myBowlInn}
             playerName={player.name}
           />
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <SquadList title={myTeam} squad={mySquad} highlight={player.name} />
+            <SquadList title={opp} squad={oppSquad} />
+          </div>
           <div className="mt-4 flex gap-3">
             <button
               onClick={() => navigate({ to: "/hub" })}
