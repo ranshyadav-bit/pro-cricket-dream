@@ -9,6 +9,8 @@ import type {
   Skills,
 } from "./types";
 import { createLeaguesState } from "./leagues";
+import { newTournamentsForYear } from "./tournaments";
+import { findLeagueForTeam, pickClubOpponent, pickInternationalOpponent, pickLeagueOpponent } from "./opponents";
 
 const NATION_CLUBS: Record<Nation, string[]> = {
   Australia: ["Sydney Strikers CC", "Melbourne Suburban CC", "Perth Coastal CC"],
@@ -31,51 +33,33 @@ function id(): string {
 }
 
 function startingSkills(role: Role): Skills {
-  // Base around 50, biased by role
   const base = (): number => rand(45, 58);
   const lo = (): number => rand(35, 48);
   const s: Skills = {
-    timing: base(),
-    technique: base(),
-    power: base(),
-    patience: base(),
-    pace: base(),
-    accuracy: base(),
-    movement: base(),
-    variation: base(),
-    fitness: rand(60, 75),
-    composure: rand(45, 60),
+    timing: base(), technique: base(), power: base(), patience: base(),
+    pace: base(), accuracy: base(), movement: base(), variation: base(),
+    fitness: rand(60, 75), composure: rand(45, 60),
   };
   switch (role) {
     case "Top-Order Bat":
-      s.timing += 8; s.technique += 8; s.patience += 6; s.pace = lo(); s.movement = lo(); s.variation = lo();
-      break;
+      s.timing += 8; s.technique += 8; s.patience += 6; s.pace = lo(); s.movement = lo(); s.variation = lo(); break;
     case "Middle-Order Bat":
-      s.timing += 6; s.technique += 4; s.power += 4; s.pace = lo(); s.movement = lo(); s.variation = lo();
-      break;
+      s.timing += 6; s.technique += 4; s.power += 4; s.pace = lo(); s.movement = lo(); s.variation = lo(); break;
     case "Finisher":
-      s.power += 12; s.timing += 4; s.composure += 6; s.pace = lo(); s.movement = lo();
-      break;
+      s.power += 12; s.timing += 4; s.composure += 6; s.pace = lo(); s.movement = lo(); break;
     case "Wicket-Keeper Bat":
-      s.timing += 6; s.technique += 4; s.composure += 4; s.pace = lo(); s.movement = lo(); s.variation = lo();
-      break;
+      s.timing += 6; s.technique += 4; s.composure += 4; s.pace = lo(); s.movement = lo(); s.variation = lo(); break;
     case "All-Rounder":
-      s.timing += 4; s.power += 2; s.pace += 4; s.accuracy += 4; s.movement += 2;
-      break;
+      s.timing += 4; s.power += 2; s.pace += 4; s.accuracy += 4; s.movement += 2; break;
     case "Pace Bowler":
-      s.pace += 12; s.accuracy += 6; s.movement += 4; s.timing = lo(); s.technique = lo(); s.power = lo();
-      break;
+      s.pace += 12; s.accuracy += 6; s.movement += 4; s.timing = lo(); s.technique = lo(); s.power = lo(); break;
     case "Swing Bowler":
-      s.movement += 12; s.accuracy += 8; s.pace += 2; s.timing = lo(); s.technique = lo(); s.power = lo();
-      break;
+      s.movement += 12; s.accuracy += 8; s.pace += 2; s.timing = lo(); s.technique = lo(); s.power = lo(); break;
     case "Off-Spinner":
-      s.movement += 10; s.accuracy += 8; s.variation += 6; s.pace = lo(); s.timing = lo(); s.power = lo();
-      break;
+      s.movement += 10; s.accuracy += 8; s.variation += 6; s.pace = lo(); s.timing = lo(); s.power = lo(); break;
     case "Leg-Spinner":
-      s.variation += 12; s.movement += 8; s.accuracy += 4; s.pace = lo(); s.timing = lo(); s.power = lo();
-      break;
+      s.variation += 12; s.movement += 8; s.accuracy += 4; s.pace = lo(); s.timing = lo(); s.power = lo(); break;
   }
-  // Clamp
   (Object.keys(s) as Array<keyof Skills>).forEach((k) => {
     s[k] = Math.max(20, Math.min(75, s[k]));
   });
@@ -84,70 +68,99 @@ function startingSkills(role: Role): Skills {
 
 export function emptyStats(): CareerStats {
   return {
-    matches: 0,
-    innings: 0,
-    runs: 0,
-    ballsFaced: 0,
-    fours: 0,
-    sixes: 0,
-    fifties: 0,
-    hundreds: 0,
-    notOuts: 0,
-    highestScore: 0,
-    oversBowled: 0,
-    ballsBowled: 0,
-    runsConceded: 0,
-    wickets: 0,
-    fiveFors: 0,
-    bestBowlingWickets: 0,
-    bestBowlingRuns: 0,
-    catches: 0,
-    manOfMatch: 0,
+    matches: 0, innings: 0, runs: 0, ballsFaced: 0, fours: 0, sixes: 0,
+    fifties: 0, hundreds: 0, notOuts: 0, highestScore: 0,
+    oversBowled: 0, ballsBowled: 0, runsConceded: 0, wickets: 0,
+    fiveFors: 0, bestBowlingWickets: 0, bestBowlingRuns: 0,
+    catches: 0, manOfMatch: 0,
   };
 }
 
-const COMPETITIONS = [
-  "Club Premier League",
-  "State Shield",
-  "T20 Blast",
-  "National A Tour",
-  "International Tour",
-  "Franchise T20",
-];
+// Format mix per tier — used to pick T20 / ODI / Test for international weeks
+function pickInternationalFormat(): "T20" | "ODI" | "Test" {
+  const r = Math.random();
+  if (r < 0.4) return "T20";
+  if (r < 0.75) return "ODI";
+  return "Test";
+}
 
-const OPPONENTS = [
-  "Northern Stars", "Southern Lions", "Eastern Tigers", "Western Eagles",
-  "Coastal Sharks", "Capital Royals", "Highland Hawks", "Valley Knights",
-  "Desert Falcons", "River Pirates",
-];
-
-export function generateFixtures(year: number, tier: Player["tier"]): Fixture[] {
+export function generateFixtures(year: number, tier: Player["tier"], player?: Player): Fixture[] {
   const list: Fixture[] = [];
-  // Generate a fixture roughly every 2 weeks across the year (52 weeks)
-  for (let w = 2; w <= 50; w += 2) {
-    // Higher tiers get more competitions
-    const compPool: string[] = (() => {
-      switch (tier) {
-        case "Club": return ["Club Premier League"];
-        case "Domestic": return ["Club Premier League", "State Shield", "T20 Blast"];
-        case "National A": return ["State Shield", "T20 Blast", "National A Tour"];
-        case "International": return ["International Tour", "Franchise T20", "T20 Blast"];
-        case "Franchise T20": return ["Franchise T20", "T20 Blast", "International Tour"];
+  const playerTeam = player?.team ?? "";
+  const playerLeague = playerTeam ? findLeagueForTeam(playerTeam) : null;
+
+  // 52-week schedule. Goal: ~3 league games every 10 weeks + many internationals at top tiers.
+  // Approach: walk every week, decide if we have a fixture and what kind.
+  for (let w = 2; w <= 51; w++) {
+    let competition: string;
+    let opponent: string;
+    let format: Fixture["format"];
+
+    if (tier === "Club") {
+      // Club tier — fixture every 2 weeks
+      if (w % 2 !== 0) continue;
+      competition = "Club Premier League";
+      opponent = pickClubOpponent();
+      format = "Club";
+    } else if (tier === "Domestic" || tier === "National A") {
+      // Domestic — 1 game/week with mix
+      if (w % 2 !== 0 && Math.random() < 0.5) continue;
+      const r = Math.random();
+      if (r < 0.4) { competition = "T20 Blast"; format = "T20"; }
+      else if (r < 0.75) { competition = "State Shield"; format = "Club"; }
+      else { competition = "National A Tour"; format = "ODI"; }
+      // For domestic, use generic opponent
+      opponent = pickClubOpponent();
+    } else if (tier === "International") {
+      // International — denser schedule. 3 league games every 10 weeks + many internationals.
+      // Every 10-week block: weeks 1-3 league, 4-7 international bilateral, 8-9 rest, 10 international
+      const blockWk = ((w - 1) % 10) + 1;
+      if (blockWk <= 3 && playerLeague) {
+        // League games
+        competition = playerLeague;
+        opponent = pickLeagueOpponent(playerTeam, playerLeague);
+        format = "T20";
+      } else if (blockWk === 8 || blockWk === 9) {
+        continue; // rest week
+      } else {
+        // International bilateral
+        if (player) {
+          competition = `${player.nation} Tour`;
+          opponent = pickInternationalOpponent(player);
+        } else {
+          competition = "International Tour";
+          opponent = "Touring XI";
+        }
+        format = pickInternationalFormat();
       }
-    })();
-    const comp = compPool[rand(0, compPool.length - 1)];
-    const fmt: Fixture["format"] = comp.includes("T20") || comp === "Franchise T20"
-      ? "T20"
-      : comp === "International Tour"
-        ? (Math.random() < 0.5 ? "ODI" : "Test")
-        : "Club";
+    } else {
+      // Franchise T20 tier
+      const blockWk = ((w - 1) % 10) + 1;
+      if (blockWk <= 3 && playerLeague) {
+        competition = playerLeague;
+        opponent = pickLeagueOpponent(playerTeam, playerLeague);
+        format = "T20";
+      } else if (blockWk === 8 || blockWk === 9) {
+        continue;
+      } else {
+        if (player) {
+          competition = `${player.nation} Tour`;
+          opponent = pickInternationalOpponent(player);
+        } else {
+          competition = "International Tour";
+          opponent = "Touring XI";
+        }
+        format = pickInternationalFormat();
+      }
+    }
+
     list.push({
       id: id(),
       week: w,
       year,
-      competition: comp,
-      opponent: OPPONENTS[rand(0, OPPONENTS.length - 1)],
-      format: fmt,
+      competition,
+      opponent,
+      format,
       venue: Math.random() < 0.5 ? "Home" : "Away",
       played: false,
     });
@@ -164,8 +177,7 @@ export function welcomeMessage(player: Player): InboxMessage {
     subject: "Welcome to the squad",
     body:
       `${player.name}, welcome to ${player.team}. We've got high hopes for you this season. ` +
-      `Train hard, play smart, and earn your spot. Your first fixture is coming up in week 2 — ` +
-      `make it count.`,
+      `Train hard, play smart, and earn your spot. Your first fixture is coming up — make it count.`,
     read: false,
     type: "coach",
   };
@@ -200,7 +212,7 @@ export function newCareer(input: {
     stats: emptyStats(),
     weekStats: emptyStats(),
     seasonStats: emptyStats(),
-    fixtures: generateFixtures(2026, "Club"),
+    fixtures: generateFixtures(2026, "Club", player),
     inbox: [welcomeMessage(player)],
     week: 1,
     year: 2026,
@@ -210,6 +222,9 @@ export function newCareer(input: {
     leagues: createLeaguesState(2026),
     offerYears: [],
     contractValue: 0,
+    contractSlots: { franchise: null, nation: null },
+    tournaments: { active: newTournamentsForYear(2026), history: [] },
+    matchInProgress: null,
   };
   return save;
 }
