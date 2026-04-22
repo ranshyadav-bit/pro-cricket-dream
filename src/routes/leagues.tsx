@@ -11,6 +11,7 @@ import {
   LEAGUE_LABEL,
 } from "@/game/leagues";
 import type { LeagueId } from "@/game/rosters";
+import type { LeaderboardEntry } from "@/game/leagues";
 import type { SaveGame } from "@/game/types";
 
 export const Route = createFileRoute("/leagues")({
@@ -32,16 +33,54 @@ function LeaguesPage() {
 
   const season = save?.leagues?.seasons[active];
   const standings = useMemo(() => (season ? getStandings(season) : []), [season]);
-  const orange = useMemo(() => (season ? getOrangeCap(season, 10) : []), [season]);
-  const purple = useMemo(() => (season ? getPurpleCap(season, 10) : []), [season]);
+
+  // Player team & merged leaderboards (so the player shows up properly)
+  const teams = LEAGUE_BY_ID[active];
+  const playerTeam = save ? teams.find((t) => t.name === save.player.team) : undefined;
+  const playerTeamId = playerTeam?.id;
+
+  // Compute player's contribution from career stats (rough — only show if they're in this league)
+  const orange: LeaderboardEntry[] = useMemo(() => {
+    if (!season || !save) return [];
+    const list = getOrangeCap(season, 30);
+    if (playerTeamId && save.seasonStats.runs > 0) {
+      // Replace any duplicate entry for the player; otherwise insert
+      const filtered = list.filter((e) => e.player !== save.player.name);
+      filtered.push({
+        player: save.player.name,
+        teamId: playerTeamId,
+        matches: save.seasonStats.matches,
+        runs: save.seasonStats.runs,
+        average: save.seasonStats.runs / Math.max(1, save.seasonStats.innings - save.seasonStats.notOuts),
+        strikeRate: save.seasonStats.ballsFaced > 0 ? (save.seasonStats.runs / save.seasonStats.ballsFaced) * 100 : 0,
+      });
+      return filtered.sort((a, b) => (b.runs ?? 0) - (a.runs ?? 0)).slice(0, 10);
+    }
+    return list.slice(0, 10);
+  }, [season, save, playerTeamId]);
+
+  const purple: LeaderboardEntry[] = useMemo(() => {
+    if (!season || !save) return [];
+    const list = getPurpleCap(season, 30);
+    if (playerTeamId && save.seasonStats.wickets > 0) {
+      const filtered = list.filter((e) => e.player !== save.player.name);
+      filtered.push({
+        player: save.player.name,
+        teamId: playerTeamId,
+        matches: save.seasonStats.matches,
+        wickets: save.seasonStats.wickets,
+        economy: save.seasonStats.ballsBowled > 0 ? (save.seasonStats.runsConceded / save.seasonStats.ballsBowled) * 6 : 0,
+        average: save.seasonStats.wickets > 0 ? save.seasonStats.runsConceded / save.seasonStats.wickets : 0,
+      });
+      return filtered.sort((a, b) => (b.wickets ?? 0) - (a.wickets ?? 0)).slice(0, 10);
+    }
+    return list.slice(0, 10);
+  }, [season, save, playerTeamId]);
 
   if (!save || !save.leagues || !season) return null;
 
-  const teams = LEAGUE_BY_ID[active];
   const teamName = (id: string) => teams.find((t) => t.id === id)?.name ?? id;
   const teamShort = (id: string) => teams.find((t) => t.id === id)?.short ?? id;
-
-  const playerTeamId = teams.find((t) => t.name === save.player.team)?.id;
 
   const upcoming = season.fixtures.filter((f) => !f.played).slice(0, 8);
   const recent = season.fixtures.filter((f) => f.played).slice(-8).reverse();
@@ -53,10 +92,12 @@ function LeaguesPage() {
           <h1 className="text-display text-2xl">World Leagues · {save.year}</h1>
           <p className="text-xs text-muted-foreground">Live parallel simulation across IPL, BBL, PSL & County.</p>
         </div>
-        <Link to="/fixtures" className="text-xs text-primary underline">Your calendar →</Link>
+        <div className="flex gap-3 text-xs">
+          <Link to="/tournaments" className="text-primary underline">ICC tournaments →</Link>
+          <Link to="/fixtures" className="text-primary underline">Your calendar →</Link>
+        </div>
       </div>
 
-      {/* League selector */}
       <div className="mb-4 flex flex-wrap gap-2">
         {LEAGUES.map((l) => (
           <button
@@ -76,7 +117,6 @@ function LeaguesPage() {
       <p className="mb-3 text-display text-sm text-foreground">{LEAGUE_LABEL[active]}{season.champion ? ` · 🏆 ${teamName(season.champion)}` : ""}</p>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Standings */}
         <GamePanel title="Standings">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -111,12 +151,11 @@ function LeaguesPage() {
           </div>
         </GamePanel>
 
-        {/* Orange Cap */}
         <GamePanel title="🟠 Orange Cap" subtitle="Top run-scorers">
           <ol className="space-y-1 text-xs">
             {orange.length === 0 && <li className="text-muted-foreground">No matches yet this season.</li>}
             {orange.map((e, i) => (
-              <li key={e.player} className={`flex items-baseline justify-between gap-2 rounded-md px-2 py-1 ${e.player === save.player.name ? "bg-primary/15 text-primary" : ""}`}>
+              <li key={`${e.player}-${i}`} className={`flex items-baseline justify-between gap-2 rounded-md px-2 py-1 ${e.player === save.player.name ? "bg-primary/15 text-primary" : ""}`}>
                 <span><span className="text-muted-foreground">{i + 1}.</span> <span className="text-display">{e.player}</span> <span className="text-[10px] text-muted-foreground">({teamShort(e.teamId)})</span></span>
                 <span className="text-display">{e.runs}</span>
               </li>
@@ -124,12 +163,11 @@ function LeaguesPage() {
           </ol>
         </GamePanel>
 
-        {/* Purple Cap */}
         <GamePanel title="🟣 Purple Cap" subtitle="Top wicket-takers">
           <ol className="space-y-1 text-xs">
             {purple.length === 0 && <li className="text-muted-foreground">No matches yet this season.</li>}
             {purple.map((e, i) => (
-              <li key={e.player} className={`flex items-baseline justify-between gap-2 rounded-md px-2 py-1 ${e.player === save.player.name ? "bg-primary/15 text-primary" : ""}`}>
+              <li key={`${e.player}-${i}`} className={`flex items-baseline justify-between gap-2 rounded-md px-2 py-1 ${e.player === save.player.name ? "bg-primary/15 text-primary" : ""}`}>
                 <span><span className="text-muted-foreground">{i + 1}.</span> <span className="text-display">{e.player}</span> <span className="text-[10px] text-muted-foreground">({teamShort(e.teamId)})</span></span>
                 <span className="text-display">{e.wickets}</span>
               </li>
