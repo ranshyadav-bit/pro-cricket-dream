@@ -13,7 +13,7 @@ export type ContractOffer = {
   basePrice: number; // in $k
   signingBonus: number; // in $k
   durationYears: number;
-  reasoning: string;
+  reasoning?: string;
 };
 
 function valueFromRating(rating: number, isFranchise: boolean): { base: number; bonus: number } {
