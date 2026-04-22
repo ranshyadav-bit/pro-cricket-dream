@@ -110,6 +110,7 @@ export interface InboxMessage {
     basePrice: number;
     signingBonus: number;
     durationYears: number;
+    reasoning?: string;
     accepted?: boolean;
     declined?: boolean;
   };
