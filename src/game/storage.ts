@@ -1,5 +1,6 @@
 import type { SaveGame } from "./types";
 import { createLeaguesState } from "./leagues";
+import { newTournamentsForYear } from "./tournaments";
 
 const SAVE_KEY = "pcc26-save-v1";
 
@@ -9,6 +10,9 @@ function ensureDerived(save: SaveGame): SaveGame {
   }
   if (!save.offerYears) save.offerYears = [];
   if (typeof save.contractValue !== "number") save.contractValue = 0;
+  if (!save.contractSlots) save.contractSlots = { franchise: null, nation: null };
+  if (!save.tournaments) save.tournaments = { active: newTournamentsForYear(save.year), history: [] };
+  if (save.matchInProgress === undefined) save.matchInProgress = null;
   return save;
 }
 
