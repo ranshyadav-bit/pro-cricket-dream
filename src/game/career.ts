@@ -10,6 +10,8 @@ import { clamp, overallRating, trainSkill } from "./rating";
 import { emptyStats, generateFixtures, makeId } from "./factory";
 import { advanceLeagues, createLeaguesState } from "./leagues";
 import { generateAnnualOffers } from "./contracts";
+import { newTournamentsForYear, advanceTournaments, tournamentsForYear } from "./tournaments";
+import { maybeCaptainPromotion } from "./scouts";
 
 // --- Stat helpers ---
 
@@ -103,7 +105,6 @@ export function applyTraining(save: SaveGame, drillKeys: string[]): {
     if (!drill) continue;
     energyUsed += drill.energy;
     skills = trainSkill(skills, drill.key, drill.xp, save.player.potential);
-    // Injury risk grows with cumulative energy and low fitness
     const risk = (energyUsed / 100) * (1 - save.player.fitness / 100) * 0.15;
     if (Math.random() < risk) {
       injuries.push(`Minor ${drill.label.toLowerCase()} strain — fitness -8`);
@@ -112,29 +113,28 @@ export function applyTraining(save: SaveGame, drillKeys: string[]): {
   let fitness = save.player.fitness - Math.min(15, energyUsed / 8);
   if (injuries.length > 0) fitness -= 8 * injuries.length;
   fitness = clamp(fitness, 20, 100);
-  const player: Player = {
-    ...save.player,
-    skills,
-    fitness,
-  };
-  return {
-    save: { ...save, player },
-    energyUsed,
-    injuries,
-  };
+  const player: Player = { ...save.player, skills, fitness };
+  return { save: { ...save, player }, energyUsed, injuries };
+}
+
+// Heavy training preset — auto-fired before a match week
+export function heavyTraining(save: SaveGame): SaveGame {
+  // Pick 3 drills relevant to role
+  const isBatter = ["Top-Order Bat", "Middle-Order Bat", "Finisher", "Wicket-Keeper Bat", "All-Rounder"].includes(save.player.role);
+  const drills = isBatter ? ["timing", "power", "fitness"] : ["pace", "accuracy", "fitness"];
+  return applyTraining(save, drills).save;
 }
 
 // --- Week advance / sim ---
 
 export function nextFixture(save: SaveGame): Fixture | null {
-  // Find the soonest unplayed fixture from current week onward, in current year
   const future = save.fixtures
     .filter((f) => !f.played && (f.year > save.year || (f.year === save.year && f.week >= save.week)))
     .sort((a, b) => (a.year - b.year) * 100 + (a.week - b.week));
   return future[0] ?? null;
 }
 
-// Sim one fixture without user playing — produces approximate stats
+// Sim one fixture without user playing
 export function simFixture(player: Player, fixture: Fixture): {
   runs: number; balls: number; fours: number; sixes: number; out: boolean;
   wickets: number; runsConceded: number; ballsBowled: number;
@@ -146,10 +146,12 @@ export function simFixture(player: Player, fixture: Fixture): {
   const isBowler = !["Top-Order Bat", "Middle-Order Bat", "Finisher", "Wicket-Keeper Bat"].includes(player.role);
   const ratingFactor = clamp((rating - 40) / 60, 0.05, 1.5);
   const formFactor = (player.confidence + player.morale) / 200;
+  // Fitness penalty: <50 fitness drops output significantly
+  const fitFactor = player.fitness < 50 ? 0.6 + player.fitness / 125 : 1;
 
   let runs = 0, balls = 0, fours = 0, sixes = 0, out = true;
   if (isBatter || player.role === "All-Rounder") {
-    const expected = 18 + ratingFactor * 35 + formFactor * 18;
+    const expected = (18 + ratingFactor * 35 + formFactor * 18) * fitFactor;
     runs = Math.max(0, Math.round(expected + (Math.random() - 0.5) * 30));
     balls = Math.max(runs, Math.round(runs / (0.6 + ratingFactor * 0.5)));
     fours = Math.round(runs * 0.10);
@@ -159,10 +161,10 @@ export function simFixture(player: Player, fixture: Fixture): {
 
   let wickets = 0, runsConceded = 0, ballsBowled = 0;
   if (isBowler || player.role === "All-Rounder") {
-    ballsBowled = fixture.format === "T20" ? 24 : fixture.format === "ODI" ? 60 : 90;
-    const expectedW = ratingFactor * (fixture.format === "T20" ? 2 : 3) + formFactor;
+    ballsBowled = fixture.format === "T20" ? 24 : fixture.format === "ODI" ? 60 : 150;
+    const expectedW = (ratingFactor * (fixture.format === "T20" ? 2 : 3) + formFactor) * fitFactor;
     wickets = clamp(Math.round(expectedW + (Math.random() - 0.4) * 2), 0, 6);
-    const econ = clamp(8.5 - ratingFactor * 3 + (Math.random() - 0.5) * 1.5, 4, 12);
+    const econ = clamp(8.5 - ratingFactor * 3 + (Math.random() - 0.5) * 1.5 + (player.fitness < 50 ? 1.2 : 0), 4, 12);
     runsConceded = Math.round((ballsBowled / 6) * econ);
   }
   const catches = Math.random() < 0.35 ? 1 : 0;
@@ -186,17 +188,14 @@ export function weeklyDrift(player: Player, performance: "good" | "neutral" | "b
   let fitness = player.fitness;
   let confidence = player.confidence;
   let morale = player.morale;
-  if (performance === "rest") {
-    fitness = clamp(fitness + 8, 20, 100);
-  } else {
-    fitness = clamp(fitness + 3, 20, 100);
-  }
+  if (performance === "rest") fitness = clamp(fitness + 12, 20, 100);
+  else fitness = clamp(fitness + 3, 20, 100);
   if (performance === "good") { confidence = clamp(confidence + 8, 0, 100); morale = clamp(morale + 4, 0, 100); }
   if (performance === "bad")  { confidence = clamp(confidence - 10, 0, 100); morale = clamp(morale - 4, 0, 100); }
   return { ...player, fitness, confidence, morale };
 }
 
-// Tier promotion: triggered by overall rating + matches played
+// Tier promotion
 export function checkPromotion(save: SaveGame): { tier: Player["tier"]; team?: string; message?: string } | null {
   const rating = overallRating(save.player);
   const t = save.player.tier;
@@ -209,16 +208,9 @@ export function checkPromotion(save: SaveGame): { tier: Player["tier"]; team?: s
   if (t === "National A" && rating >= 78 && save.stats.matches >= 35) {
     return { tier: "International", team: `${save.player.nation} National Team`, message: "INTERNATIONAL CALL-UP! You've earned your country's cap." };
   }
-  if (t === "International" && rating >= 82 && save.stats.matches >= 50) {
-    return { tier: "Franchise T20", team: pickTeam("Franchise T20", save.player.nation), message: "Picked up at the franchise auction!" };
-  }
   return null;
 }
 
-const T20_FRANCHISES = [
-  "Mumbai Mavericks", "Chennai Super Lions", "Bangalore Royals", "Kolkata Tigers",
-  "Lahore Qalanders", "Karachi Kings", "Sydney Sixers", "Perth Scorchers",
-];
 const DOMESTIC_TEAMS_BY_NATION: Record<string, string[]> = {
   Australia: ["NSW Blues", "Victoria Bushrangers", "Queensland Bulls", "WA Warriors"],
   England: ["Surrey", "Yorkshire", "Lancashire", "Middlesex"],
@@ -232,7 +224,6 @@ const DOMESTIC_TEAMS_BY_NATION: Record<string, string[]> = {
 };
 
 function pickTeam(tier: Player["tier"], nation: Player["nation"]): string {
-  if (tier === "Franchise T20") return T20_FRANCHISES[Math.floor(Math.random() * T20_FRANCHISES.length)];
   if (tier === "International") return `${nation} National Team`;
   if (tier === "National A") return `${nation} A`;
   if (tier === "Domestic") {
@@ -242,18 +233,46 @@ function pickTeam(tier: Player["tier"], nation: Player["nation"]): string {
   return "Local Club";
 }
 
-// Advance one week — sim any fixtures in the past, keep upcoming ones
-export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean } = {}): {
+// Decide auto behaviour: heavy training pre-match, rest after a match
+function nextActionForWeek(save: SaveGame): "heavyTrain" | "rest" | "neutral" {
+  // If a fixture exists in the next 1-2 weeks, train heavy
+  const upcoming = save.fixtures.find((f) =>
+    !f.played && f.year === save.year &&
+    f.week >= save.week && f.week <= save.week + 1,
+  );
+  if (upcoming) return "heavyTrain";
+  // If we just played a match this week, rest
+  const justPlayed = save.fixtures.find((f) => f.played && f.year === save.year && f.week === save.week);
+  if (justPlayed) return "rest";
+  // Low fitness → rest
+  if (save.player.fitness < 55) return "rest";
+  return "heavyTrain"; // default to staying sharp
+}
+
+// Advance one week
+export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean; skipAuto?: boolean } = {}): {
   save: SaveGame;
   newMessages: InboxMessage[];
   simmedFixtures: Array<{ fixture: Fixture; result: ReturnType<typeof simFixture> }>;
 } {
-  let next = { ...save };
-  let player = { ...next.player };
+  let next: SaveGame = { ...save };
+  let player: Player = { ...next.player };
   const messages: InboxMessage[] = [];
   const simmed: Array<{ fixture: Fixture; result: ReturnType<typeof simFixture> }> = [];
   let stats = { ...next.stats };
   let seasonStats = { ...next.seasonStats };
+
+  // Auto train/rest decision for this week (before fixture sim)
+  if (!opts.skipAuto) {
+    const action = opts.restWeek ? "rest" : nextActionForWeek(next);
+    if (action === "heavyTrain") {
+      const trained = heavyTraining(next);
+      next = trained;
+      player = { ...trained.player };
+    } else if (action === "rest") {
+      player = { ...player, fitness: clamp(player.fitness + 12, 20, 100) };
+    }
+  }
 
   // Find fixtures in current week or earlier that aren't played
   const fixturesNow = next.fixtures.filter(
@@ -265,86 +284,111 @@ export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean } = {}): 
     f.played = true;
     stats = mergeMatchStats(stats, { ...sim, played: true });
     seasonStats = mergeMatchStats(seasonStats, { ...sim, played: true });
-    // Confidence drift from result
     const grade = (sim.runs >= 50 || sim.wickets >= 3) ? "good" : (sim.runs <= 5 && sim.wickets === 0) ? "bad" : "neutral";
     player = weeklyDrift(player, grade);
     messages.push({
-      id: makeId(),
-      week: f.week,
-      year: f.year,
+      id: makeId(), week: f.week, year: f.year,
       from: f.competition,
       subject: `Result vs ${f.opponent} — ${sim.result}`,
       body: `Match simulated. Your contribution: ${sim.summary}.${sim.manOfMatch ? " You were named Player of the Match!" : ""}`,
-      read: false,
-      type: "system",
+      read: false, type: "system",
     });
   }
-  if (fixturesNow.length === 0) {
-    player = weeklyDrift(player, opts.restWeek ? "rest" : "neutral");
+  if (fixturesNow.length === 0 && opts.restWeek) {
+    player = weeklyDrift(player, "rest");
   }
 
-  // Aging: ~1/52nd of a year per week
+  // Aging
   player.age = Math.round((player.age + 1 / 52) * 100) / 100;
-
-  // Promotion check
   next.player = player;
   next.stats = stats;
   next.seasonStats = seasonStats;
+
+  // Promotion check (auto tier)
   const promo = checkPromotion(next);
   if (promo) {
     player = { ...player, tier: promo.tier, team: promo.team ?? player.team };
+    if (promo.tier === "International") {
+      next.contractSlots = { ...(next.contractSlots ?? { franchise: null, nation: null }), nation: { team: promo.team!, expiresYear: next.year + 2 } };
+    }
     messages.push({
-      id: makeId(),
-      week: next.week,
-      year: next.year,
+      id: makeId(), week: next.week, year: next.year,
       from: "Selection Committee",
       subject: `Promotion: ${promo.tier}`,
       body: promo.message ?? "You've been promoted.",
-      read: false,
-      type: "milestone",
+      read: false, type: "milestone",
     });
+    // Regenerate fixtures for new tier from current week onward
+    next.fixtures = [
+      ...next.fixtures.filter((f) => f.played),
+      ...generateFixtures(next.year, promo.tier, player).filter((f) => f.week >= next.week),
+    ];
   }
-
   next.player = player;
 
-  // Advance week
+  // Captain promotion
+  const capMsg = maybeCaptainPromotion(next);
+  if (capMsg) {
+    next.player = { ...next.player, perks: [...next.player.perks, "Captain"] };
+    messages.push(capMsg);
+  }
+
+  // Advance week counter
   next.week += 1;
   if (next.week > 52) {
     next.week = 1;
     next.year += 1;
-    // New season — reset season stats, generate new fixtures, age fully
     next.seasonStats = emptyStats();
-    next.fixtures = generateFixtures(next.year, next.player.tier);
+    next.fixtures = generateFixtures(next.year, next.player.tier, next.player);
     next.player = { ...next.player, age: Math.round(next.player.age + 0.01) };
-    // Reset leagues for new year
     next.leagues = createLeaguesState(next.year);
+    // Generate new tournaments for the year
+    const newTournys = newTournamentsForYear(next.year);
+    next.tournaments = { active: [...(next.tournaments?.active ?? []).filter((t) => !t.finished), ...newTournys], history: next.tournaments?.history ?? [] };
+    // Tournament invitations
+    if (next.player.tier === "International") {
+      for (const t of newTournys) {
+        messages.push({
+          id: makeId(), week: 1, year: next.year,
+          from: `${next.player.nation} Cricket Board`,
+          subject: `Selected for ${t.name} ${next.year}`,
+          body: `You've been called up to represent ${next.player.nation} at the ${t.name} ${next.year}. Tournament begins around week ${t.startWeek}. Bring your best.`,
+          read: false, type: "milestone",
+        });
+      }
+    }
     messages.push({
-      id: makeId(),
-      week: 1,
-      year: next.year,
+      id: makeId(), week: 1, year: next.year,
       from: "PCC News",
       subject: `Welcome to the ${next.year} season`,
-      body: `A new season begins. Your stats reset, but your career legacy carries on.`,
-      read: false,
-      type: "system",
+      body: `A new season begins. Your stats reset, but your career legacy carries on.${tournamentsForYear(next.year).length > 0 ? " ICC tournaments are scheduled this year." : ""}`,
+      read: false, type: "system",
     });
   }
 
-  // Advance parallel leagues to current week
+  // Advance parallel leagues
   if (!next.leagues) next.leagues = createLeaguesState(next.year);
   next.leagues = advanceLeagues(next.leagues, next.week, next.year);
 
-  // Annual contract offers — fire once per year around Week 48 (auction window)
+  // Advance ICC tournaments
+  if (!next.tournaments) next.tournaments = { active: newTournamentsForYear(next.year), history: [] };
+  next.tournaments = advanceTournaments(next.tournaments, next.week, next.year);
+
+  // Annual contract offers — Week 48
   if (!next.offerYears) next.offerYears = [];
   if (next.week >= 48 && !next.offerYears.includes(next.year) && !next.player.retired) {
     const offers = generateAnnualOffers(next);
     if (offers.length > 0) {
       next.offerYears = [...next.offerYears, next.year];
       for (const o of offers) {
+        // Skip if conflicts with existing contract slot
+        const cs = next.contractSlots ?? { franchise: null, nation: null };
+        const isFranchise = !!o.league;
+        const isNation = o.tier === "International";
+        if (isFranchise && cs.franchise) continue;
+        if (isNation && cs.nation) continue;
         messages.push({
-          id: makeId(),
-          week: next.week,
-          year: next.year,
+          id: makeId(), week: next.week, year: next.year,
           from: o.fromTeam,
           subject: `Contract offer · ${o.league ?? o.format} · $${(o.basePrice + o.signingBonus).toLocaleString()}k`,
           body:
@@ -353,31 +397,26 @@ export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean } = {}): 
             `Base price: $${o.basePrice.toLocaleString()}k\n` +
             `Signing bonus: $${o.signingBonus.toLocaleString()}k\n` +
             `Length: ${o.durationYears} year${o.durationYears > 1 ? "s" : ""}\n\n` +
-            `Open this message in your inbox to accept or decline.`,
-          read: false,
-          type: "contract",
+            `Open this message in your inbox to accept, decline, or negotiate.`,
+          read: false, type: "contract",
           offer: { ...o },
         });
       }
     }
   }
 
-  // Retirement check — age 35+ with declining fitness
-  if (next.player.age >= 35 && (next.player.fitness < 60 || Math.random() < 0.05) || next.player.age >= 40) {
+  // Retirement check
+  if ((next.player.age >= 35 && (next.player.fitness < 60 || Math.random() < 0.05)) || next.player.age >= 40) {
     next.player.retired = true;
     messages.push({
-      id: makeId(),
-      week: next.week,
-      year: next.year,
+      id: makeId(), week: next.week, year: next.year,
       from: "Press Conference",
       subject: "Retirement",
       body: `${next.player.name} has announced their retirement at age ${Math.floor(next.player.age)}. What a career.`,
-      read: false,
-      type: "milestone",
+      read: false, type: "milestone",
     });
   }
 
-  next.inbox = [...messages, ...next.inbox].slice(0, 50);
-
+  next.inbox = [...messages, ...next.inbox].slice(0, 60);
   return { save: next, newMessages: messages, simmedFixtures: simmed };
 }

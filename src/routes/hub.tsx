@@ -145,6 +145,12 @@ function Hub() {
             >
               World Leagues 🏆
             </Link>
+            <Link
+              to="/tournaments"
+              className="rounded-md border border-primary/40 bg-primary/10 px-4 py-2.5 text-center text-display text-sm text-primary hover:bg-primary/20"
+            >
+              ICC Tournaments 🌍
+            </Link>
           </div>
         </GamePanel>
       </div>

@@ -110,6 +110,7 @@ export interface InboxMessage {
     basePrice: number;
     signingBonus: number;
     durationYears: number;
+    reasoning?: string;
     accepted?: boolean;
     declined?: boolean;
   };
@@ -135,6 +136,17 @@ export interface SaveGame {
   offerYears?: number[];
   // Active contract value (in $k) — bumped when offers accepted
   contractValue?: number;
+  // Contract slots: 1 franchise + 1 nation max
+  contractSlots?: ContractSlots;
+  // ICC tournament state (T20 WC, ODI WC, WTC)
+  tournaments?: import("./tournaments").TournamentsState;
+  // Mid-match resume snapshot (one match at a time)
+  matchInProgress?: import("./matchSave").MatchSnapshot | null;
+}
+
+export interface ContractSlots {
+  franchise: { team: string; league: "IPL" | "BBL" | "PSL" | "County"; expiresYear: number } | null;
+  nation: { team: string; expiresYear: number } | null;
 }
 
 // Match-screen types
