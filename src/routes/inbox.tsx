@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { GameShell } from "@/components/game/GameShell";
 import { GamePanel } from "@/components/game/Panel";
 import { loadSave, writeSave } from "@/game/storage";
+import { generateFixtures } from "@/game/factory";
 import { negotiateOffer, offerSlotConflict } from "@/game/scouts";
 import type { InboxMessage, SaveGame } from "@/game/types";
 
