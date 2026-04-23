@@ -43,6 +43,21 @@ function Hub() {
 
   return (
     <GameShell>
+      {save.matchInProgress && (
+        <div className="mb-4 flex items-center justify-between rounded-md border border-accent/40 bg-accent/10 px-4 py-3">
+          <div>
+            <p className="text-display text-sm text-accent">Match in progress</p>
+            <p className="text-xs text-muted-foreground">{save.matchInProgress.competition} · vs {save.matchInProgress.opponent} ({save.matchInProgress.format})</p>
+          </div>
+          <Link
+            to="/match"
+            search={{ id: save.matchInProgress.fixtureId }}
+            className="rounded-md bg-gradient-primary px-4 py-2 text-display text-xs text-primary-foreground shadow-glow"
+          >
+            Resume →
+          </Link>
+        </div>
+      )}
       {tickerMsg && (
         <div className="mb-4 rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm text-primary">
           {tickerMsg}
