@@ -97,33 +97,32 @@ export function generateFixtures(year: number, tier: Player["tier"], player?: Pl
     let format: Fixture["format"];
 
     if (tier === "Club") {
-      // Club tier — fixture every 2 weeks
+      // Club tier — club v club only, every 2 weeks
       if (w % 2 !== 0) continue;
       competition = "Club Premier League";
       opponent = pickClubOpponent();
       format = "Club";
     } else if (tier === "Domestic" || tier === "National A") {
-      // Domestic — 1 game/week with mix
+      // Domestic — local club/state opponents only (never national teams)
       if (w % 2 !== 0 && Math.random() < 0.5) continue;
       const r = Math.random();
       if (r < 0.4) { competition = "T20 Blast"; format = "T20"; }
       else if (r < 0.75) { competition = "State Shield"; format = "Club"; }
       else { competition = "National A Tour"; format = "ODI"; }
-      // For domestic, use generic opponent
       opponent = pickClubOpponent();
     } else if (tier === "International") {
-      // International — denser schedule. 3 league games every 10 weeks + many internationals.
-      // Every 10-week block: weeks 1-3 league, 4-7 international bilateral, 8-9 rest, 10 international
+      // International — denser schedule.
+      // 10-week block: 1-3 league (T20 league v league), 4-7 international, 8-9 rest, 10 international.
       const blockWk = ((w - 1) % 10) + 1;
       if (blockWk <= 3 && playerLeague) {
-        // League games
+        // League block — STRICTLY league v league (always 20 overs)
         competition = playerLeague;
         opponent = pickLeagueOpponent(playerTeam, playerLeague);
         format = "T20";
       } else if (blockWk === 8 || blockWk === 9) {
         continue; // rest week
       } else {
-        // International bilateral
+        // International bilateral — country v country, T20/ODI/Test only
         if (player) {
           competition = `${player.nation} Tour`;
           opponent = pickInternationalOpponent(player);
@@ -134,24 +133,17 @@ export function generateFixtures(year: number, tier: Player["tier"], player?: Pl
         format = pickInternationalFormat();
       }
     } else {
-      // Franchise T20 tier
+      // Franchise T20 tier — league v league only (T20)
       const blockWk = ((w - 1) % 10) + 1;
-      if (blockWk <= 3 && playerLeague) {
+      if (blockWk === 8 || blockWk === 9) continue;
+      if (playerLeague) {
         competition = playerLeague;
         opponent = pickLeagueOpponent(playerTeam, playerLeague);
-        format = "T20";
-      } else if (blockWk === 8 || blockWk === 9) {
-        continue;
       } else {
-        if (player) {
-          competition = `${player.nation} Tour`;
-          opponent = pickInternationalOpponent(player);
-        } else {
-          competition = "International Tour";
-          opponent = "Touring XI";
-        }
-        format = pickInternationalFormat();
+        competition = "Franchise T20";
+        opponent = "Visiting XI";
       }
+      format = "T20";
     }
 
     list.push({
