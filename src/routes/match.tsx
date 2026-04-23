@@ -200,7 +200,13 @@ function MatchInner({
 
   // Innings list — supports up to 4 (Tests). Allocated lazily via setupInnings()
   const [innings, setInnings] = useState<InningsState[]>(() => {
-    if (snap) return snap.innings as InningsState[];
+    if (snap) {
+      return snap.innings.map((i) => ({
+        ...i,
+        declared: false,
+        partnerOut: false,
+      })) as InningsState[];
+    }
     return [];
   });
   const [currentInn, setCurrentInn] = useState(snap ? snap.currentInnings : 0);
