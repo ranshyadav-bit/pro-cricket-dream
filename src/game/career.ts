@@ -11,7 +11,7 @@ import { emptyStats, generateFixtures, makeId } from "./factory";
 import { advanceLeagues, createLeaguesState } from "./leagues";
 import { generateAnnualOffers } from "./contracts";
 import { newTournamentsForYear, advanceTournaments, tournamentsForYear } from "./tournaments";
-import { maybeCaptainPromotion } from "./scouts";
+import { maybeCaptainPromotion, maybeScoutOffer } from "./scouts";
 
 // --- Stat helpers ---
 
@@ -146,8 +146,10 @@ export function simFixture(player: Player, fixture: Fixture): {
   const isBowler = !["Top-Order Bat", "Middle-Order Bat", "Finisher", "Wicket-Keeper Bat"].includes(player.role);
   const ratingFactor = clamp((rating - 40) / 60, 0.05, 1.5);
   const formFactor = (player.confidence + player.morale) / 200;
-  // Fitness penalty: <50 fitness drops output significantly
-  const fitFactor = player.fitness < 50 ? 0.6 + player.fitness / 125 : 1;
+  // Fitness penalty: <50 drops output, <30 cripples it
+  const fit = player.fitness;
+  const fitFactor = fit < 30 ? 0.35 : fit < 50 ? 0.65 : 1.0;
+  const fitWicketFactor = fit < 30 ? 0.3 : fit < 50 ? 0.6 : 1.0;
 
   let runs = 0, balls = 0, fours = 0, sixes = 0, out = true;
   if (isBatter || player.role === "All-Rounder") {
@@ -162,9 +164,19 @@ export function simFixture(player: Player, fixture: Fixture): {
   let wickets = 0, runsConceded = 0, ballsBowled = 0;
   if (isBowler || player.role === "All-Rounder") {
     ballsBowled = fixture.format === "T20" ? 24 : fixture.format === "ODI" ? 60 : 150;
-    const expectedW = (ratingFactor * (fixture.format === "T20" ? 2 : 3) + formFactor) * fitFactor;
-    wickets = clamp(Math.round(expectedW + (Math.random() - 0.4) * 2), 0, 6);
-    const econ = clamp(8.5 - ratingFactor * 3 + (Math.random() - 0.5) * 1.5 + (player.fitness < 50 ? 1.2 : 0), 4, 12);
+    // Realistic wickets: mostly 1-3, rarely 5
+    const wRand = Math.random();
+    let baseW: number;
+    if (wRand < 0.20) baseW = 0;
+    else if (wRand < 0.55) baseW = 1;
+    else if (wRand < 0.80) baseW = 2;
+    else if (wRand < 0.95) baseW = 3;
+    else if (wRand < 0.99) baseW = 4;
+    else baseW = 5; // ~1% five-for
+    // Skill nudges up slightly
+    if (ratingFactor > 1.0 && Math.random() < 0.2) baseW += 1;
+    wickets = clamp(Math.round(baseW * fitWicketFactor), 0, 5);
+    const econ = clamp(8.5 - ratingFactor * 3 + (Math.random() - 0.5) * 1.5 + (fit < 30 ? 2.5 : fit < 50 ? 1.2 : 0), 4, 14);
     runsConceded = Math.round((ballsBowled / 6) * econ);
   }
   const catches = Math.random() < 0.35 ? 1 : 0;
@@ -293,6 +305,12 @@ export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean; skipAuto
       body: `Match simulated. Your contribution: ${sim.summary}.${sim.manOfMatch ? " You were named Player of the Match!" : ""}`,
       read: false, type: "system",
     });
+    // Scout offer chance after every match (~20% baseline)
+    const scoutMsg = maybeScoutOffer({ ...next, player }, {
+      runs: sim.runs, balls: sim.balls, wickets: sim.wickets,
+      runsConceded: sim.runsConceded, ballsBowled: sim.ballsBowled, out: sim.out,
+    });
+    if (scoutMsg) messages.push(scoutMsg);
   }
   if (fixturesNow.length === 0 && opts.restWeek) {
     player = weeklyDrift(player, "rest");
@@ -304,26 +322,8 @@ export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean; skipAuto
   next.stats = stats;
   next.seasonStats = seasonStats;
 
-  // Promotion check (auto tier)
-  const promo = checkPromotion(next);
-  if (promo) {
-    player = { ...player, tier: promo.tier, team: promo.team ?? player.team };
-    if (promo.tier === "International") {
-      next.contractSlots = { ...(next.contractSlots ?? { franchise: null, nation: null }), nation: { team: promo.team!, expiresYear: next.year + 2 } };
-    }
-    messages.push({
-      id: makeId(), week: next.week, year: next.year,
-      from: "Selection Committee",
-      subject: `Promotion: ${promo.tier}`,
-      body: promo.message ?? "You've been promoted.",
-      read: false, type: "milestone",
-    });
-    // Regenerate fixtures for new tier from current week onward
-    next.fixtures = [
-      ...next.fixtures.filter((f) => f.played),
-      ...generateFixtures(next.year, promo.tier, player).filter((f) => f.week >= next.week),
-    ];
-  }
+  // Tier promotion is now SCOUT-DRIVEN (not auto). Players climb tiers by accepting
+  // scout offers in their inbox. Captaincy remains the only auto-promotion.
   next.player = player;
 
   // Captain promotion

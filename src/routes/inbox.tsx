@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { GameShell } from "@/components/game/GameShell";
 import { GamePanel } from "@/components/game/Panel";
 import { loadSave, writeSave } from "@/game/storage";
+import { generateFixtures } from "@/game/factory";
 import { negotiateOffer, offerSlotConflict } from "@/game/scouts";
 import type { InboxMessage, SaveGame } from "@/game/types";
 
@@ -55,15 +56,22 @@ function Inbox() {
     const newTeam = isFranchise ? o.fromTeam : (isNation ? o.fromTeam : save.player.team);
     const newTier = isFranchise ? "Franchise T20" : (isNation ? "International" : save.player.tier);
 
+    const updatedPlayer = {
+      ...save.player,
+      team: newTeam,
+      tier: newTier,
+      cash: save.player.cash + earnings,
+      morale: Math.min(100, save.player.morale + 8),
+    };
+    // Regenerate future fixtures for the new tier (preserve already-played ones)
+    const regenerated = [
+      ...save.fixtures.filter((f) => f.played),
+      ...generateFixtures(save.year, newTier, updatedPlayer).filter((f) => f.week >= save.week),
+    ];
     const next: SaveGame = {
       ...save,
-      player: {
-        ...save.player,
-        team: newTeam,
-        tier: newTier,
-        cash: save.player.cash + earnings,
-        morale: Math.min(100, save.player.morale + 8),
-      },
+      player: updatedPlayer,
+      fixtures: regenerated,
       contractValue: earnings,
       contractSlots: updatedSlots,
       inbox: save.inbox.map((m) =>
@@ -71,7 +79,7 @@ function Inbox() {
           ? {
               ...m,
               offer: { ...o, basePrice, signingBonus, accepted: true },
-              body: m.body + `\n\n✓ ACCEPTED. You've signed with ${o.fromTeam}. $${earnings.toLocaleString()}k credited.`,
+              body: m.body + `\n\n✓ ACCEPTED. You've signed with ${o.fromTeam}. $${earnings.toLocaleString()}k credited. Your schedule has been updated.`,
             }
           : m,
       ),
