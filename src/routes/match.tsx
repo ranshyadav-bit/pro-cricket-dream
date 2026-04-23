@@ -345,10 +345,11 @@ function MatchInner({
           ci.wickets += 1;
           ci.playerOut = true;
           if (runOut) {
-            ci.log = [{
+            const ro: BallOutcome = {
               runs: 1, isWicket: true, wicketType: "Run Out", isBoundary: false, isExtra: false,
               commentary: `Disaster! ${save.player.name} short of his ground — RUN OUT for ${ci.playerRuns}.`,
-            }, ...ci.log].slice(0, 25);
+            };
+            ci.log = [ro, ...ci.log].slice(0, 25);
           }
         }
       } else if (!onStrikeIsPlayer && !fromPlayer) {
