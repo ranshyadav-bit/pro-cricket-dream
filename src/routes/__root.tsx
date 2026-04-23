@@ -29,14 +29,14 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Maths Learning - SPARX" },
+      { title: "Dr Frost Maths - Learn more:" },
       {
         name: "description",
         content:
           "An interactive single-player cricket career game. Choose your shot ball-by-ball, train, and rise from club to international.",
       },
       { name: "author", content: "Pro Cricket Career 26" },
-      { property: "og:title", content: "Maths Learning - SPARX" },
+      { property: "og:title", content: "Dr Frost Maths - Learn more:" },
       {
         property: "og:description",
         content:
@@ -44,7 +44,7 @@ export const Route = createRootRoute({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Maths Learning - SPARX" },
+      { name: "twitter:title", content: "Dr Frost Maths - Learn more:" },
       { name: "description", content: "Sparx Learning for Maths - Learn more:" },
       { property: "og:description", content: "Sparx Learning for Maths - Learn more:" },
       { name: "twitter:description", content: "Sparx Learning for Maths - Learn more:" },
