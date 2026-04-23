@@ -305,6 +305,12 @@ export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean; skipAuto
       body: `Match simulated. Your contribution: ${sim.summary}.${sim.manOfMatch ? " You were named Player of the Match!" : ""}`,
       read: false, type: "system",
     });
+    // Scout offer chance after every match (~20% baseline)
+    const scoutMsg = maybeScoutOffer({ ...next, player }, {
+      runs: sim.runs, balls: sim.balls, wickets: sim.wickets,
+      runsConceded: sim.runsConceded, ballsBowled: sim.ballsBowled, out: sim.out,
+    });
+    if (scoutMsg) messages.push(scoutMsg);
   }
   if (fixturesNow.length === 0 && opts.restWeek) {
     player = weeklyDrift(player, "rest");
@@ -316,26 +322,8 @@ export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean; skipAuto
   next.stats = stats;
   next.seasonStats = seasonStats;
 
-  // Promotion check (auto tier)
-  const promo = checkPromotion(next);
-  if (promo) {
-    player = { ...player, tier: promo.tier, team: promo.team ?? player.team };
-    if (promo.tier === "International") {
-      next.contractSlots = { ...(next.contractSlots ?? { franchise: null, nation: null }), nation: { team: promo.team!, expiresYear: next.year + 2 } };
-    }
-    messages.push({
-      id: makeId(), week: next.week, year: next.year,
-      from: "Selection Committee",
-      subject: `Promotion: ${promo.tier}`,
-      body: promo.message ?? "You've been promoted.",
-      read: false, type: "milestone",
-    });
-    // Regenerate fixtures for new tier from current week onward
-    next.fixtures = [
-      ...next.fixtures.filter((f) => f.played),
-      ...generateFixtures(next.year, promo.tier, player).filter((f) => f.week >= next.week),
-    ];
-  }
+  // Tier promotion is now SCOUT-DRIVEN (not auto). Players climb tiers by accepting
+  // scout offers in their inbox. Captaincy remains the only auto-promotion.
   next.player = player;
 
   // Captain promotion
