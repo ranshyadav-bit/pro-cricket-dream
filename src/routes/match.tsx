@@ -49,6 +49,34 @@ export const Route = createFileRoute("/match")({
 
 type Phase = "intro" | "toss" | "batting" | "bowling" | "innings-break" | "result";
 
+type DismissalKind = "Bowled" | "LBW" | "Caught" | "Stumped" | "Run Out";
+
+interface BatterCard {
+  name: string;
+  isPlayer: boolean;
+  runs: number;
+  balls: number;
+  fours: number;
+  sixes: number;
+  out: boolean;
+  dismissal?: DismissalKind;
+  bowler?: string; // who got him out (bowler name)
+  fielder?: string; // for caught/run out
+  battedOrder: number; // 1..11 — order they walked in (0 = yet to bat)
+}
+
+interface BowlerCard {
+  name: string;
+  isPlayer: boolean;
+  balls: number;
+  runs: number;
+  wickets: number;
+  maidens: number;
+  // Internal: track runs in current over to compute maidens
+  _curOverRuns: number;
+  _curOverBalls: number;
+}
+
 interface InningsState {
   battingTeam: string;
   bowlingTeam: string;
@@ -75,9 +103,55 @@ interface InningsState {
   playerWicketsTaken: number;
   playerRunsConceded: number;
   playerBallsBowled: number;
+  // FULL SCORECARD — every batter and bowler tracked individually
+  batters: BatterCard[]; // length 11; order = squad order
+  bowlers: BowlerCard[]; // length 11; only used ones get balls > 0
+  battedCount: number; // how many batters have come to crease
 }
 
-function emptyInnings(batting: string, bowling: string, partnerName = "Partner"): InningsState {
+const DISMISSAL_TYPES: DismissalKind[] = ["Bowled", "LBW", "Caught", "Stumped", "Run Out"];
+
+function pickDismissal(bowlerIsSpin: boolean): DismissalKind {
+  const r = Math.random();
+  if (bowlerIsSpin) {
+    if (r < 0.45) return "Caught";
+    if (r < 0.65) return "LBW";
+    if (r < 0.8) return "Bowled";
+    if (r < 0.95) return "Stumped";
+    return "Run Out";
+  }
+  if (r < 0.55) return "Caught";
+  if (r < 0.75) return "Bowled";
+  if (r < 0.92) return "LBW";
+  return "Run Out";
+}
+
+function emptyBatters(squad: RosterPlayer[], playerName: string): BatterCard[] {
+  return squad.slice(0, 11).map((p) => ({
+    name: p.name,
+    isPlayer: p.name === playerName,
+    runs: 0, balls: 0, fours: 0, sixes: 0,
+    out: false,
+    battedOrder: 0,
+  }));
+}
+
+function emptyBowlers(squad: RosterPlayer[], playerName: string): BowlerCard[] {
+  // Bowlers — usually all 11 listed; only those who actually bowl get tracked
+  return squad.slice(0, 11).map((p) => ({
+    name: p.name,
+    isPlayer: p.name === playerName,
+    balls: 0, runs: 0, wickets: 0, maidens: 0,
+    _curOverRuns: 0, _curOverBalls: 0,
+  }));
+}
+
+function emptyInnings(
+  batting: string, bowling: string,
+  battingSquad: RosterPlayer[], bowlingSquad: RosterPlayer[],
+  playerName: string,
+  partnerName = "Partner",
+): InningsState {
   return {
     battingTeam: batting, bowlingTeam: bowling,
     runs: 0, wickets: 0, balls: 0, log: [], declared: false,
@@ -86,6 +160,9 @@ function emptyInnings(batting: string, bowling: string, partnerName = "Partner")
     partnerName, partnerRuns: 0, partnerBalls: 0, partnerOut: false,
     strikerIsPlayer: true,
     playerWicketsTaken: 0, playerRunsConceded: 0, playerBallsBowled: 0,
+    batters: emptyBatters(battingSquad, playerName),
+    bowlers: emptyBowlers(bowlingSquad, playerName),
+    battedCount: 0,
   };
 }
 
@@ -102,6 +179,10 @@ function battingPositionForRole(role: Role): number {
     case "Pace Bowler":
     case "Swing Bowler": return 9;
   }
+}
+
+function isSpinRole(role: Role): boolean {
+  return role === "Off-Spinner" || role === "Leg-Spinner";
 }
 
 function Match() {
@@ -142,7 +223,6 @@ function MatchInner({
 }) {
   const navigate = useNavigate();
   const player = save.player;
-  const isBatter = ["Top-Order Bat", "Middle-Order Bat", "Finisher", "Wicket-Keeper Bat"].includes(player.role);
   const isBowler = ["Pace Bowler", "Swing Bowler", "Off-Spinner", "Leg-Spinner"].includes(player.role);
   const isAR = player.role === "All-Rounder";
 
@@ -184,29 +264,64 @@ function MatchInner({
   }, [save.player, myTeam, fixture.competition, fixture.format]);
 
   // Ordered batting XI for "us" — sorted by batting suitability so partner names cycle realistically.
+  // Player is forced to their role's natural slot (so Top-Order opens, Bowler bats #9) — fixes the "instant top-order" glitch.
   const myBattingOrder = useMemo<RosterPlayer[]>(() => {
-    const order = [...mySquad];
-    order.sort((a, b) => battingPositionForRole(a.role) - battingPositionForRole(b.role));
+    const others = mySquad.filter((p) => p.name !== save.player.name);
+    others.sort((a, b) => battingPositionForRole(a.role) - battingPositionForRole(b.role));
+    const me: RosterPlayer = { name: save.player.name, role: save.player.role, rating: 75 };
+    const order: RosterPlayer[] = [];
+    let othersIdx = 0;
+    for (let pos = 1; pos <= 11; pos++) {
+      if (pos === playerBatPos && !order.includes(me)) {
+        order.push(me);
+      } else {
+        order.push(others[othersIdx++] ?? me);
+      }
+    }
     return order;
-  }, [mySquad]);
+  }, [mySquad, save.player.name, save.player.role, playerBatPos]);
+
+  // Opposition batting order — sorted by role
+  const oppBattingOrder = useMemo<RosterPlayer[]>(() => {
+    const order = [...oppSquad];
+    order.sort((a, b) => battingPositionForRole(a.role) - battingPositionForRole(b.role));
+    return order.slice(0, 11);
+  }, [oppSquad]);
+
+  // Bowling pools (only bowler-types from the opposing squad bowl)
+  const myBowlersPool = useMemo<RosterPlayer[]>(() => {
+    return mySquad.filter((p) => isBowler || isAR ? true : ["Pace Bowler", "Swing Bowler", "Off-Spinner", "Leg-Spinner", "All-Rounder"].includes(p.role));
+  }, [mySquad, isBowler, isAR]);
+  const oppBowlersPool = useMemo<RosterPlayer[]>(() => {
+    return oppSquad.filter((p) => ["Pace Bowler", "Swing Bowler", "Off-Spinner", "Leg-Spinner", "All-Rounder"].includes(p.role));
+  }, [oppSquad]);
 
   // ---- Toss + match phase ----
-  // Try resuming an existing snapshot if it matches this fixture
   const snap = save.matchInProgress && save.matchInProgress.fixtureId === fixture.id ? save.matchInProgress : null;
 
   const [phase, setPhase] = useState<Phase>(snap ? snap.phase as Phase : "toss");
   const [tossWon] = useState(() => snap ? snap.tossWon : Math.random() < 0.5);
   const [tossChoice, setTossChoice] = useState<"bat" | "bowl" | null>(snap ? snap.tossChoice : null);
   const [battingFirst, setBattingFirst] = useState<boolean>(snap ? snap.battingFirst : true);
+  // Tab on result screen
+  const [scorecardTab, setScorecardTab] = useState<0 | 1>(0);
 
-  // Innings list — supports up to 4 (Tests). Allocated lazily via setupInnings()
   const [innings, setInnings] = useState<InningsState[]>(() => {
     if (snap) {
-      return snap.innings.map((i) => ({
-        ...i,
-        declared: false,
-        partnerOut: false,
-      })) as InningsState[];
+      // Hydrate without scorecard (legacy snapshot) — re-init batters/bowlers if missing
+      return snap.innings.map((i) => {
+        const battingSq = i.battingTeam === myTeam ? mySquad : oppSquad;
+        const bowlingSq = i.bowlingTeam === myTeam ? mySquad : oppSquad;
+        const anyI = i as unknown as Partial<InningsState>;
+        return {
+          ...i,
+          declared: false,
+          partnerOut: false,
+          batters: anyI.batters ?? emptyBatters(battingSq, save.player.name),
+          bowlers: anyI.bowlers ?? emptyBowlers(bowlingSq, save.player.name),
+          battedCount: anyI.battedCount ?? 0,
+        } as InningsState;
+      });
     }
     return [];
   });
@@ -228,12 +343,13 @@ function MatchInner({
     const total = isTest ? 4 : 2;
     const list: InningsState[] = [];
     for (let i = 0; i < total; i++) {
-      // Innings 1 & 3 -> first batter team; 2 & 4 -> the other
       const isFirstBatTeam = i % 2 === 0;
       const battingTeam = (isFirstBatTeam && usBatFirst) || (!isFirstBatTeam && !usBatFirst) ? myTeam : opp;
       const bowlingTeam = battingTeam === myTeam ? opp : myTeam;
+      const battingSq = battingTeam === myTeam ? mySquad : oppSquad;
+      const bowlingSq = bowlingTeam === myTeam ? mySquad : oppSquad;
       const partnerStart = battingTeam === myTeam ? partnerForPosition(2) : "—";
-      list.push(emptyInnings(battingTeam, bowlingTeam, partnerStart));
+      list.push(emptyInnings(battingTeam, bowlingTeam, battingSq, bowlingSq, save.player.name, partnerStart));
     }
     setInnings(list);
     setCurrentInn(0);
@@ -256,28 +372,124 @@ function MatchInner({
   function startInnings() {
     if (!inn) return;
     if (isMyBatting) {
-      // Player walks in at their batting position; before that, sim openers.
-      simUntilPlayerComes();
+      simUntilPlayerComes(currentInn);
       setPhase("batting");
     } else {
       setPhase("bowling");
     }
   }
 
+  // -------- Helper: pick a bowler for the AI side this over --------
+  function pickAiBowler(ci: InningsState, pool: RosterPlayer[]): { name: string; spin: boolean } {
+    if (pool.length === 0) return { name: ci.bowlingTeam + " bowler", spin: false };
+    // Rotate based on over number
+    const overNum = Math.floor(ci.balls / 6);
+    // Limit each bowler to ~ overs/5 in limited overs, no cap in tests
+    const candidate = pool[overNum % pool.length];
+    return { name: candidate.name, spin: isSpinRole(candidate.role) };
+  }
+
+  // -------- Helper: record a ball into the scorecard --------
+  // mutates ci in place; returns nothing
+  function recordBallToScorecard(
+    ci: InningsState,
+    o: BallOutcome,
+    striker: { name: string; isPlayer: boolean } | null,
+    bowler: { name: string; isPlayer: boolean } | null,
+  ) {
+    // Update bowler stats (legal balls only)
+    if (bowler) {
+      let bw = ci.bowlers.find((b) => b.name === bowler.name);
+      if (!bw) {
+        bw = {
+          name: bowler.name,
+          isPlayer: bowler.isPlayer,
+          balls: 0, runs: 0, wickets: 0, maidens: 0,
+          _curOverRuns: 0, _curOverBalls: 0,
+        };
+        ci.bowlers.push(bw);
+      }
+      if (!o.isExtra) {
+        bw.balls += 1;
+        bw._curOverBalls += 1;
+      }
+      // wides/no-balls add to bowler runs in real cricket (extras), but byes/leg-byes don't
+      if (o.isExtra && (o.extraType === "Wide" || o.extraType === "No Ball")) {
+        bw.runs += o.runs;
+        bw._curOverRuns += o.runs;
+      } else if (!o.isExtra) {
+        bw.runs += o.runs;
+        bw._curOverRuns += o.runs;
+      }
+      if (o.isWicket && o.wicketType !== "Run Out") {
+        bw.wickets += 1;
+      }
+      // End of over → maiden check
+      if (bw._curOverBalls >= 6) {
+        if (bw._curOverRuns === 0) bw.maidens += 1;
+        bw._curOverRuns = 0;
+        bw._curOverBalls = 0;
+      }
+    }
+    // Update batter stats
+    if (striker && !o.isExtra) {
+      const bt = ci.batters.find((b) => b.name === striker.name);
+      if (bt) {
+        bt.balls += 1;
+        bt.runs += o.runs;
+        if (o.runs === 4) bt.fours += 1;
+        if (o.runs === 6) bt.sixes += 1;
+        if (o.isWicket) {
+          bt.out = true;
+          bt.dismissal = (o.wicketType ?? "Bowled") as DismissalKind;
+          if (bowler && bt.dismissal !== "Run Out") bt.bowler = bowler.name;
+        }
+      }
+    } else if (striker && o.isExtra && o.isWicket) {
+      // run-out off an extra (rare) — still mark the batter
+      const bt = ci.batters.find((b) => b.name === striker.name);
+      if (bt) { bt.out = true; bt.dismissal = "Run Out"; }
+    }
+  }
+
+  // -------- Mark a batter as having walked in (assigns batted order) --------
+  function markBatterIn(ci: InningsState, name: string) {
+    const bt = ci.batters.find((b) => b.name === name);
+    if (bt && bt.battedOrder === 0) {
+      ci.battedCount += 1;
+      bt.battedOrder = ci.battedCount;
+    }
+  }
+
   // Sim balls (with partner script) until the player walks to the crease
-  function simUntilPlayerComes() {
-    if (!inn) return;
+  // FIX: Accept explicit innings index so we never write to a stale currentInn.
+  function simUntilPlayerComes(targetInnIdx: number) {
     setInnings((all) => {
+      if (!all[targetInnIdx]) return all;
       const next = [...all];
-      const ci = { ...next[currentInn] };
+      const ci = { ...next[targetInnIdx] };
+      // Deep-clone scorecard arrays so we can mutate
+      ci.batters = ci.batters.map((b) => ({ ...b }));
+      ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+
+      // Mark openers in
+      const battingSq = ci.battingTeam === myTeam ? myBattingOrder : oppBattingOrder;
+      if (battingSq[0]) markBatterIn(ci, battingSq[0].name);
+      if (battingSq[1]) markBatterIn(ci, battingSq[1].name);
+
+      const bowlingPool = ci.bowlingTeam === myTeam ? myBowlersPool : oppBowlersPool;
+
       if (playerBatPos <= 1) {
+        // Player IS the opener — no sim needed
         ci.battingPosition = 1;
-        ci.partnerName = partnerForPosition(2);
-        next[currentInn] = ci;
+        ci.partnerName = battingSq[1]?.name ?? partnerForPosition(2);
+        next[targetInnIdx] = ci;
         return next;
       }
+
       // Sim wickets until enough have fallen so player at position playerBatPos is next in
-      let safety = 1000;
+      let safety = 1500;
+      let nextBatterIdx = 2; // openers are 0,1 → next in is index 2
       while (ci.wickets < playerBatPos - 1 && safety-- > 0) {
         const r = Math.random();
         let runs = 0; let isWicket = false;
@@ -287,19 +499,58 @@ function MatchInner({
         else if (r < 0.88) runs = 2;
         else if (r < 0.96) runs = 4;
         else runs = 6;
+
+        // Determine current striker — whichever opener/incoming batter is at top-of-order and not out
+        const liveBatters = ci.batters.filter((b) => b.battedOrder > 0 && !b.out);
+        const striker = liveBatters[0] ?? null;
+        const bw = pickAiBowler(ci, bowlingPool);
+        const bowler = bw ? { name: bw.name, isPlayer: false } : null;
+
+        let outcome: BallOutcome;
+        if (isWicket) {
+          const dis = pickDismissal(bw.spin);
+          outcome = {
+            runs: 0, isWicket: true, wicketType: dis,
+            isBoundary: false, isExtra: false,
+            commentary: `${striker?.name ?? "Batter"} ${dis === "Bowled" ? "bowled" : dis === "LBW" ? "trapped LBW" : dis === "Caught" ? "caught" : dis === "Stumped" ? "stumped" : "run out"} — ${bw.name}.`,
+            wicket: undefined,
+          } as BallOutcome;
+        } else {
+          outcome = {
+            runs, isWicket: false, isBoundary: runs === 4 || runs === 6, isExtra: false,
+            commentary: runs === 0 ? `Dot.` : runs >= 4 ? `Boundary!` : `${runs} run${runs>1?"s":""}.`,
+          };
+        }
+
+        recordBallToScorecard(ci, outcome, striker ? { name: striker.name, isPlayer: false } : null, bowler);
+
         ci.balls += 1;
         ci.runs += runs;
-        if (isWicket) ci.wickets += 1;
+        if (isWicket) {
+          ci.wickets += 1;
+          // Bring next batter in (unless this wicket is the one that brings the player in)
+          if (ci.wickets < playerBatPos - 1 && battingSq[nextBatterIdx]) {
+            markBatterIn(ci, battingSq[nextBatterIdx].name);
+            nextBatterIdx += 1;
+          }
+        }
       }
+
+      // Now player walks in
       ci.battingPosition = ci.wickets + 1;
-      ci.partnerName = partnerForPosition(ci.wickets + 2);
-      ci.partnerRuns = 0; ci.partnerBalls = 0; ci.partnerOut = false;
+      markBatterIn(ci, save.player.name);
+      // Partner is the OTHER batter still at the crease (the opener / earlier batter who wasn't out)
+      const stillIn = ci.batters.find((b) => b.battedOrder > 0 && !b.out && b.name !== save.player.name);
+      ci.partnerName = stillIn?.name ?? partnerForPosition(ci.wickets + 2);
+      ci.partnerRuns = stillIn?.runs ?? 0;
+      ci.partnerBalls = stillIn?.balls ?? 0;
+      ci.partnerOut = false;
       ci.strikerIsPlayer = true;
       ci.log = [{
         runs: 0, isWicket: false, isBoundary: false, isExtra: false,
         commentary: `${save.player.name} walks to the crease at #${ci.battingPosition} — joins ${ci.partnerName}.`,
       }, ...ci.log].slice(0, 25);
-      next[currentInn] = ci;
+      next[targetInnIdx] = ci;
       return next;
     });
   }
@@ -333,14 +584,42 @@ function MatchInner({
     setInnings((all) => {
       const next = [...all];
       const ci = { ...next[currentInn], log: [o, ...next[currentInn].log].slice(0, 25) };
+      ci.batters = ci.batters.map((b) => ({ ...b }));
+      ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+
       if (!o.isExtra) ci.balls += 1;
       ci.runs += o.runs;
       const onStrikeIsPlayer = ci.strikerIsPlayer;
-      // Run-out chance on a 2 (rare)
+
+      // Run-out chance on a 2 (rare) — applies to whoever ran
       let runOut = false;
       if (!o.isWicket && !o.isExtra && o.runs === 2 && Math.random() < 0.04) {
         runOut = true;
       }
+
+      // Determine bowler for scorecard — pick from opposition pool
+      const bowlingPool = ci.bowlingTeam === myTeam ? myBowlersPool : oppBowlersPool;
+      const bw = pickAiBowler(ci, bowlingPool);
+      const bowlerEntry = { name: bw.name, isPlayer: false };
+
+      // Build dismissal type if the wicket is from the bowler (not run-out)
+      let outcomeForCard: BallOutcome = o;
+      if (o.isWicket && !o.wicketType) {
+        const dis = pickDismissal(bw.spin);
+        outcomeForCard = { ...o, wicketType: dis };
+      }
+      if (runOut) {
+        outcomeForCard = {
+          ...outcomeForCard, isWicket: true, wicketType: "Run Out", runs: 1,
+        };
+      }
+
+      // Identify striker name for scorecard
+      const strikerName = onStrikeIsPlayer ? save.player.name : ci.partnerName;
+      const strikerEntry = { name: strikerName, isPlayer: onStrikeIsPlayer };
+
+      recordBallToScorecard(ci, outcomeForCard, strikerEntry, bowlerEntry);
+
       if (onStrikeIsPlayer && fromPlayer) {
         if (!o.isExtra) {
           ci.playerBalls += 1;
@@ -367,14 +646,21 @@ function MatchInner({
         if (o.isWicket || runOut) {
           ci.wickets += 1;
           ci.partnerOut = true;
-          // Bring next partner if more wickets allowed
+          // Bring next partner in if more wickets allowed and player still in
           if (ci.wickets < 10 && !ci.playerOut) {
-            const nextPartnerIdx = ci.wickets + 1; // approx position
-            ci.partnerName = partnerForPosition(nextPartnerIdx + 1);
+            const battingSq = ci.battingTeam === myTeam ? myBattingOrder : oppBattingOrder;
+            // Next batter = first squad member with no battedOrder yet
+            const nextSquadMember = battingSq.find((p) => {
+              const bc = ci.batters.find((b) => b.name === p.name);
+              return bc && bc.battedOrder === 0;
+            });
+            const nextPartnerName = nextSquadMember?.name ?? partnerForPosition(ci.wickets + 1);
+            markBatterIn(ci, nextPartnerName);
+            ci.partnerName = nextPartnerName;
             ci.partnerRuns = 0; ci.partnerBalls = 0; ci.partnerOut = false;
             ci.log = [{
               runs: 0, isWicket: false, isBoundary: false, isExtra: false,
-              commentary: `${ci.partnerName} walks in to join ${save.player.name}.`,
+              commentary: `${nextPartnerName} walks in to join ${save.player.name}.`,
             }, ...ci.log].slice(0, 25);
           }
         }
@@ -401,7 +687,6 @@ function MatchInner({
     const t = setTimeout(() => {
       const r = Math.random();
       let runs = 0; let isWicket = false;
-      // Partner less skilled than player
       if (r < 0.05) isWicket = true;
       else if (r < 0.55) runs = 0;
       else if (r < 0.8) runs = 1;
@@ -415,7 +700,8 @@ function MatchInner({
       applyStrikerBall(o, false);
     }, 600);
     return () => clearTimeout(t);
-  }, [phase, inn, oversPerInnings, target]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, inn?.balls, inn?.strikerIsPlayer, inn?.playerOut, oversPerInnings, target]);
 
   // After player out: fast-forward remaining wickets in this innings (lower order)
   useEffect(() => {
@@ -428,6 +714,9 @@ function MatchInner({
         const next = [...all];
         const ci = { ...next[currentInn] };
         if (ci.balls >= oversPerInnings * 6 || ci.wickets >= 10) return all;
+        ci.batters = ci.batters.map((b) => ({ ...b }));
+        ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+
         const r = Math.random();
         let runs = 0; let isWicket = false;
         if (r < 0.07) isWicket = true;
@@ -436,18 +725,42 @@ function MatchInner({
         else if (r < 0.88) runs = 2;
         else if (r < 0.96) runs = 4;
         else runs = 6;
-        const o: BallOutcome = {
-          runs, isWicket, isBoundary: runs === 4 || runs === 6, isExtra: false,
-          commentary: isWicket ? `Tail-ender falls.` : runs === 0 ? `Dot.` : runs >= 4 ? `Tail-ender pumps it!` : `${runs} taken.`,
+
+        const battingSq = ci.battingTeam === myTeam ? myBattingOrder : oppBattingOrder;
+        // Find first not-out batter in batted order
+        const liveBatters = ci.batters.filter((b) => b.battedOrder > 0 && !b.out);
+        const striker = liveBatters[0] ?? null;
+        const bowlingPool = ci.bowlingTeam === myTeam ? myBowlersPool : oppBowlersPool;
+        const bw = pickAiBowler(ci, bowlingPool);
+
+        const outcome: BallOutcome = isWicket ? {
+          runs: 0, isWicket: true, wicketType: pickDismissal(bw.spin),
+          isBoundary: false, isExtra: false,
+          commentary: `Tail-ender falls.`,
+        } : {
+          runs, isWicket: false, isBoundary: runs === 4 || runs === 6, isExtra: false,
+          commentary: runs === 0 ? `Dot.` : runs >= 4 ? `Tail-ender pumps it!` : `${runs} taken.`,
         };
-        ci.log = [o, ...ci.log].slice(0, 25);
-        ci.runs += runs; ci.balls += 1;
-        if (isWicket) ci.wickets += 1;
+
+        recordBallToScorecard(ci, outcome, striker ? { name: striker.name, isPlayer: false } : null, { name: bw.name, isPlayer: false });
+
+        ci.log = [outcome, ...ci.log].slice(0, 25);
+        ci.runs += outcome.runs; ci.balls += 1;
+        if (outcome.isWicket) {
+          ci.wickets += 1;
+          // Bring next tail-ender in
+          const nextSquadMember = battingSq.find((p) => {
+            const bc = ci.batters.find((b) => b.name === p.name);
+            return bc && bc.battedOrder === 0;
+          });
+          if (nextSquadMember) markBatterIn(ci, nextSquadMember.name);
+        }
         next[currentInn] = ci;
         return next;
       });
     }, 220);
     return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, inn?.playerOut, oversPerInnings, target, currentInn]);
 
   // ---------- Bowling flow ----------
@@ -474,6 +787,38 @@ function MatchInner({
     setInnings((all) => {
       const next = [...all];
       const ci = { ...next[currentInn], log: [outcome, ...next[currentInn].log].slice(0, 25) };
+      ci.batters = ci.batters.map((b) => ({ ...b }));
+      ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+
+      // Determine the AI striker (first not-out batter in batted order, or bring in opener if none yet)
+      const battingSq = ci.battingTeam === myTeam ? myBattingOrder : oppBattingOrder;
+      // Ensure openers are marked in
+      if (ci.battedCount === 0) {
+        if (battingSq[0]) markBatterIn(ci, battingSq[0].name);
+        if (battingSq[1]) markBatterIn(ci, battingSq[1].name);
+      }
+      let liveBatters = ci.batters.filter((b) => b.battedOrder > 0 && !b.out);
+      if (liveBatters.length < 2) {
+        const next2 = battingSq.find((p) => {
+          const bc = ci.batters.find((b) => b.name === p.name);
+          return bc && bc.battedOrder === 0;
+        });
+        if (next2) markBatterIn(ci, next2.name);
+        liveBatters = ci.batters.filter((b) => b.battedOrder > 0 && !b.out);
+      }
+      const striker = liveBatters[0] ?? null;
+
+      // Add wicket type if missing
+      let outcomeForCard = outcome;
+      if (outcome.isWicket && !outcome.wicketType) {
+        const dis = pickDismissal(isSpinRole(player.role));
+        outcomeForCard = { ...outcome, wicketType: dis };
+      }
+
+      recordBallToScorecard(ci, outcomeForCard,
+        striker ? { name: striker.name, isPlayer: false } : null,
+        { name: save.player.name, isPlayer: true });
+
       ci.runs += outcome.runs;
       if (!outcome.isExtra) {
         ci.balls += 1;
@@ -483,6 +828,12 @@ function MatchInner({
       if (outcome.isWicket) {
         ci.wickets += 1;
         ci.playerWicketsTaken += 1;
+        // Bring next batter in
+        const nextSquadMember = battingSq.find((p) => {
+          const bc = ci.batters.find((b) => b.name === p.name);
+          return bc && bc.battedOrder === 0;
+        });
+        if (nextSquadMember) markBatterIn(ci, nextSquadMember.name);
       }
       next[currentInn] = ci;
       return next;
@@ -509,6 +860,9 @@ function MatchInner({
         const ci = { ...next[currentInn] };
         if (ci.balls >= oversPerInnings * 6 || ci.wickets >= 10) return all;
         if (target !== null && ci.runs >= target) return all;
+        ci.batters = ci.batters.map((b) => ({ ...b }));
+        ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+
         const r = Math.random();
         let runs = 0; let isWicket = false;
         if (r < 0.045) isWicket = true;
@@ -517,18 +871,47 @@ function MatchInner({
         else if (r < 0.86) runs = 2;
         else if (r < 0.95) runs = 4;
         else runs = 6;
-        const o: BallOutcome = {
-          runs, isWicket, isBoundary: runs === 4 || runs === 6, isExtra: false,
-          commentary: isWicket ? `Partner takes a wicket!` : runs === 0 ? `Dot.` : runs >= 4 ? `Conceded a boundary.` : `${runs} run${runs>1?"s":""} given.`,
+
+        const battingSq = ci.battingTeam === myTeam ? myBattingOrder : oppBattingOrder;
+        if (ci.battedCount === 0) {
+          if (battingSq[0]) markBatterIn(ci, battingSq[0].name);
+          if (battingSq[1]) markBatterIn(ci, battingSq[1].name);
+        }
+        const liveBatters = ci.batters.filter((b) => b.battedOrder > 0 && !b.out);
+        const striker = liveBatters[0] ?? null;
+        // AI bowling partner — pick from our pool excluding the player
+        const partnerPool = myBowlersPool.filter((p) => p.name !== save.player.name);
+        const bw = pickAiBowler(ci, partnerPool.length ? partnerPool : myBowlersPool);
+
+        const outcome: BallOutcome = isWicket ? {
+          runs: 0, isWicket: true, wicketType: pickDismissal(bw.spin),
+          isBoundary: false, isExtra: false,
+          commentary: `Partner takes a wicket!`,
+        } : {
+          runs, isWicket: false, isBoundary: runs === 4 || runs === 6, isExtra: false,
+          commentary: runs === 0 ? `Dot.` : runs >= 4 ? `Conceded a boundary.` : `${runs} run${runs>1?"s":""} given.`,
         };
-        ci.log = [o, ...ci.log].slice(0, 25);
-        ci.runs += runs; ci.balls += 1;
-        if (isWicket) ci.wickets += 1;
+
+        recordBallToScorecard(ci, outcome,
+          striker ? { name: striker.name, isPlayer: false } : null,
+          { name: bw.name, isPlayer: false });
+
+        ci.log = [outcome, ...ci.log].slice(0, 25);
+        ci.runs += outcome.runs; ci.balls += 1;
+        if (outcome.isWicket) {
+          ci.wickets += 1;
+          const nextSquadMember = battingSq.find((p) => {
+            const bc = ci.batters.find((b) => b.name === p.name);
+            return bc && bc.battedOrder === 0;
+          });
+          if (nextSquadMember) markBatterIn(ci, nextSquadMember.name);
+        }
         next[currentInn] = ci;
         return next;
       });
     }, 200);
     return () => { clearInterval(interval); simInProgress.current = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, inn?.playerBallsBowled, inn?.balls, inn?.wickets, oversPerInnings, playerBowlsOvers, target, currentInn]);
 
   // Test day tracking — bump day when 90 overs of innings consumed
@@ -536,7 +919,7 @@ function MatchInner({
     if (!isTest || !inn) return;
     const newDay = Math.floor(inn.balls / 6 / oversPerDay) + 1;
     if (newDay !== day) setDay(newDay);
-  }, [isTest, inn?.balls, oversPerDay, day]);
+  }, [isTest, inn?.balls, oversPerDay, day, inn]);
 
   // Detect innings completion → next phase
   useEffect(() => {
@@ -556,20 +939,14 @@ function MatchInner({
     const nextIdx = currentInn + 1;
     // Compute target if applicable
     if (isTest) {
-      // Test target is set only in 4th innings: lead from team 1 vs team 2
       if (nextIdx === 3) {
-        // After 3rd innings, set 4th innings target
-        const team1Total = (innings[0].battingTeam === innings[2].battingTeam ? innings[0].runs + innings[2].runs : innings[0].runs) -
-          (innings[0].battingTeam !== innings[2].battingTeam ? innings[2].runs : 0);
-        // simpler: side batting in innings 4 chases (team1.bat + team1.bat3rd) - team2.bat
         const i1 = innings[0]; const i2 = innings[1]; const i3 = innings[2];
         const fourthBat = innings.length > 3 ? innings[3].battingTeam : "";
         const total1 = i1.battingTeam === fourthBat ? i1.runs + (i3.battingTeam === fourthBat ? i3.runs : 0) : (i3.battingTeam === fourthBat ? i3.runs : 0);
         const total2 = i2.battingTeam === fourthBat ? 0 : (i1.battingTeam !== fourthBat ? i1.runs : 0) + (i3.battingTeam !== fourthBat ? i3.runs : 0);
         const totalAgainst = i2.battingTeam !== fourthBat ? i2.runs : 0;
-        // target = (totalAgainst + opponentTotal) - chasingTotal + 1
-        const chasing = total1; // runs already scored by chasing team
-        const conceded = totalAgainst + total2; // runs scored by other team
+        const chasing = total1;
+        const conceded = totalAgainst + total2;
         setTarget(conceded - chasing + 1);
       }
     } else {
@@ -580,7 +957,8 @@ function MatchInner({
     const nextInn = innings[nextIdx];
     if (!nextInn) return;
     if (nextInn.battingTeam === myTeam) {
-      simUntilPlayerComes();
+      // FIX: pass nextIdx explicitly so we don't write to stale currentInn
+      simUntilPlayerComes(nextIdx);
       setPhase("batting");
     } else {
       setPhase("bowling");
@@ -601,7 +979,6 @@ function MatchInner({
     if (phase !== "result") return;
     if (savedRef.current) return;
     savedRef.current = true;
-    // Sum across all innings (Tests will have up to 4)
     const myInns = innings.filter((i) => i.battingTeam === myTeam);
     const oppInns = innings.filter((i) => i.battingTeam === opp);
     const myBowlInns = innings.filter((i) => i.bowlingTeam === myTeam);
@@ -646,7 +1023,7 @@ function MatchInner({
       seasonStats: newSeasonStats,
       player: { ...save.player, confidence: conf, morale: mor, fitness: Math.max(20, save.player.fitness - 6) },
       fixtures: save.fixtures.map((f) => f.id === fixture.id ? { ...f, played: true } : f),
-      matchInProgress: null, // clear snapshot on completion
+      matchInProgress: null,
       inbox: [
         ...(scoutMsg ? [scoutMsg] : []),
         {
@@ -704,7 +1081,6 @@ function MatchInner({
     writeSave(updated);
   }, [phase, innings, currentInn, target, day, fixture, tossWon, tossChoice, battingFirst, save, snap]);
 
-  // Persist after meaningful changes (debounced via timeout)
   useEffect(() => {
     if (phase === "result") return;
     const t = setTimeout(persistSnapshot, 350);
@@ -819,7 +1195,7 @@ function MatchInner({
           {/* Bowler card */}
           {!isMyBatting && (
             <div className="mb-4">
-              <BowlerCard
+              <BowlerSelfCard
                 name={player.name}
                 wickets={inn.playerWicketsTaken}
                 runs={inn.playerRunsConceded}
@@ -879,17 +1255,61 @@ function MatchInner({
       )}
 
       {phase === "result" && (
-        <GamePanel title="Result">
-          <ResultBlock
-            myTeam={myTeam} opp={opp}
-            innings={innings} myTeamName={myTeam}
-            playerName={player.name}
-          />
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <SquadList title={myTeam} squad={mySquad} highlight={player.name} />
-            <SquadList title={opp} squad={oppSquad} />
+        <>
+          <GamePanel title="Result">
+            <ResultBlock
+              myTeam={myTeam} opp={opp}
+              innings={innings} myTeamName={myTeam}
+              playerName={player.name}
+            />
+          </GamePanel>
+
+          {/* SCORECARDS — tabbed for each team */}
+          <div className="mt-6">
+            <div className="mb-3 flex gap-2">
+              <button
+                onClick={() => setScorecardTab(0)}
+                className={`rounded-md border px-4 py-2 text-display text-xs transition-colors ${
+                  scorecardTab === 0
+                    ? "border-primary bg-primary/15 text-primary"
+                    : "border-border bg-background/30 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {myTeam} Scorecard
+              </button>
+              <button
+                onClick={() => setScorecardTab(1)}
+                className={`rounded-md border px-4 py-2 text-display text-xs transition-colors ${
+                  scorecardTab === 1
+                    ? "border-primary bg-primary/15 text-primary"
+                    : "border-border bg-background/30 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {opp} Scorecard
+              </button>
+            </div>
+
+            {scorecardTab === 0 && (
+              <TeamScorecard
+                teamName={myTeam}
+                playerName={player.name}
+                battingInnings={innings.filter((i) => i.battingTeam === myTeam)}
+                bowlingInningsAgainstUs={innings.filter((i) => i.bowlingTeam === myTeam)}
+                fullSquadBatting={myBattingOrder}
+              />
+            )}
+            {scorecardTab === 1 && (
+              <TeamScorecard
+                teamName={opp}
+                playerName={player.name}
+                battingInnings={innings.filter((i) => i.battingTeam === opp)}
+                bowlingInningsAgainstUs={innings.filter((i) => i.bowlingTeam === opp)}
+                fullSquadBatting={oppBattingOrder}
+              />
+            )}
           </div>
-          <div className="mt-4 flex gap-3">
+
+          <div className="mt-6 flex gap-3">
             <button
               onClick={() => navigate({ to: "/hub" })}
               className="rounded-md bg-gradient-primary px-6 py-2 text-display text-sm text-primary-foreground"
@@ -903,7 +1323,7 @@ function MatchInner({
               Inbox
             </button>
           </div>
-        </GamePanel>
+        </>
       )}
     </GameShell>
   );
@@ -958,7 +1378,7 @@ function PartnerCard({ name, runs, balls, out }: { name: string; runs: number; b
   );
 }
 
-function BowlerCard({ name, wickets, runs, balls, quota }: {
+function BowlerSelfCard({ name, wickets, runs, balls, quota }: {
   name: string; wickets: number; runs: number; balls: number; quota: number;
 }) {
   const overs = `${Math.floor(balls / 6)}.${balls % 6}`;
@@ -1147,18 +1567,170 @@ function ResultBlock({ myTeam, opp, innings, playerName }: {
   );
 }
 
-function SquadList({ title, squad, highlight }: { title: string; squad: RosterPlayer[]; highlight?: string }) {
+// ---------- FULL TEAM SCORECARD ----------
+
+function TeamScorecard({
+  teamName, playerName, battingInnings, bowlingInningsAgainstUs, fullSquadBatting,
+}: {
+  teamName: string;
+  playerName: string;
+  battingInnings: InningsState[]; // innings where THIS team batted
+  bowlingInningsAgainstUs: InningsState[]; // innings where THIS team bowled
+  fullSquadBatting: RosterPlayer[];
+}) {
   return (
-    <div className="rounded-md border border-border bg-background/30 p-3">
-      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{title} XI</p>
-      <ul className="mt-2 space-y-1 text-xs">
-        {squad.map((p) => (
-          <li key={p.name} className={`flex items-baseline justify-between gap-2 ${p.name === highlight ? "text-primary" : "text-foreground"}`}>
-            <span><span className="text-display">{p.name}</span> <span className="text-[10px] text-muted-foreground">· {p.role}</span></span>
-            <span className="text-muted-foreground">{p.rating}</span>
-          </li>
-        ))}
-      </ul>
+    <div className="space-y-6">
+      {battingInnings.map((inn, idx) => (
+        <BattingScorecardTable
+          key={`bat-${idx}`}
+          inn={inn}
+          title={`${teamName} Batting${battingInnings.length > 1 ? ` — Innings ${idx + 1}` : ""}`}
+          playerName={playerName}
+          fullSquad={fullSquadBatting}
+        />
+      ))}
+      {bowlingInningsAgainstUs.map((inn, idx) => (
+        <BowlingScorecardTable
+          key={`bowl-${idx}`}
+          inn={inn}
+          title={`${teamName} Bowling${bowlingInningsAgainstUs.length > 1 ? ` — Innings ${idx + 1}` : ""}`}
+          playerName={playerName}
+        />
+      ))}
+    </div>
+  );
+}
+
+function dismissalText(b: BatterCard): string {
+  if (!b.out) return b.battedOrder === 0 ? "yet to bat" : "not out";
+  switch (b.dismissal) {
+    case "Bowled": return `b ${b.bowler ?? ""}`;
+    case "LBW": return `lbw b ${b.bowler ?? ""}`;
+    case "Caught": return `c & b ${b.bowler ?? ""}`;
+    case "Stumped": return `st b ${b.bowler ?? ""}`;
+    case "Run Out": return `run out`;
+    default: return "out";
+  }
+}
+
+function BattingScorecardTable({
+  inn, title, playerName, fullSquad,
+}: {
+  inn: InningsState;
+  title: string;
+  playerName: string;
+  fullSquad: RosterPlayer[];
+}) {
+  // Order: by battedOrder (1..n), then yet-to-bat by squad order
+  const rows = [...inn.batters].sort((a, b) => {
+    if (a.battedOrder === 0 && b.battedOrder === 0) {
+      return fullSquad.findIndex((p) => p.name === a.name) - fullSquad.findIndex((p) => p.name === b.name);
+    }
+    if (a.battedOrder === 0) return 1;
+    if (b.battedOrder === 0) return -1;
+    return a.battedOrder - b.battedOrder;
+  });
+  const totalRuns = inn.runs;
+  const totalWkts = inn.wickets;
+  const overs = `${Math.floor(inn.balls / 6)}.${inn.balls % 6}`;
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 shadow-elegant">
+      <div className="mb-3 flex items-baseline justify-between">
+        <h3 className="text-display text-base text-foreground">{title}</h3>
+        <p className="text-display text-sm text-primary">{totalRuns}/{totalWkts} <span className="text-xs text-muted-foreground">({overs} ov)</span></p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border text-left text-[10px] uppercase tracking-widest text-muted-foreground">
+              <th className="py-1.5 pr-2">Batter</th>
+              <th className="py-1.5 pr-2">Dismissal</th>
+              <th className="py-1.5 pr-2 text-right">R</th>
+              <th className="py-1.5 pr-2 text-right">B</th>
+              <th className="py-1.5 pr-2 text-right">4s</th>
+              <th className="py-1.5 pr-2 text-right">6s</th>
+              <th className="py-1.5 text-right">SR</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((b) => {
+              const sr = b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : "—";
+              const isYetToBat = b.battedOrder === 0;
+              return (
+                <tr
+                  key={b.name}
+                  className={`border-b border-border/40 ${b.name === playerName ? "bg-primary/10" : ""} ${isYetToBat ? "opacity-50" : ""}`}
+                >
+                  <td className="py-1.5 pr-2 text-display">
+                    {b.name}{b.name === playerName ? " (you)" : ""}
+                  </td>
+                  <td className="py-1.5 pr-2 text-muted-foreground italic">{dismissalText(b)}</td>
+                  <td className="py-1.5 pr-2 text-right text-foreground">{isYetToBat ? "—" : b.runs}</td>
+                  <td className="py-1.5 pr-2 text-right text-muted-foreground">{isYetToBat ? "—" : b.balls}</td>
+                  <td className="py-1.5 pr-2 text-right text-muted-foreground">{isYetToBat ? "—" : b.fours}</td>
+                  <td className="py-1.5 pr-2 text-right text-muted-foreground">{isYetToBat ? "—" : b.sixes}</td>
+                  <td className="py-1.5 text-right text-muted-foreground">{isYetToBat ? "—" : sr}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function BowlingScorecardTable({
+  inn, title, playerName,
+}: {
+  inn: InningsState;
+  title: string;
+  playerName: string;
+}) {
+  // Only show bowlers who actually bowled
+  const rows = inn.bowlers.filter((b) => b.balls > 0).sort((a, b) => b.wickets - a.wickets || a.runs - b.runs);
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 shadow-elegant">
+      <h3 className="mb-3 text-display text-base text-foreground">{title}</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border text-left text-[10px] uppercase tracking-widest text-muted-foreground">
+              <th className="py-1.5 pr-2">Bowler</th>
+              <th className="py-1.5 pr-2 text-right">O</th>
+              <th className="py-1.5 pr-2 text-right">M</th>
+              <th className="py-1.5 pr-2 text-right">R</th>
+              <th className="py-1.5 pr-2 text-right">W</th>
+              <th className="py-1.5 text-right">Econ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr><td colSpan={6} className="py-3 text-center text-muted-foreground">No bowlers recorded.</td></tr>
+            )}
+            {rows.map((b) => {
+              const overs = `${Math.floor(b.balls / 6)}.${b.balls % 6}`;
+              const econ = b.balls > 0 ? ((b.runs / b.balls) * 6).toFixed(2) : "—";
+              return (
+                <tr
+                  key={b.name}
+                  className={`border-b border-border/40 ${b.name === playerName ? "bg-primary/10" : ""}`}
+                >
+                  <td className="py-1.5 pr-2 text-display">
+                    {b.name}{b.name === playerName ? " (you)" : ""}
+                  </td>
+                  <td className="py-1.5 pr-2 text-right text-foreground">{overs}</td>
+                  <td className="py-1.5 pr-2 text-right text-muted-foreground">{b.maidens}</td>
+                  <td className="py-1.5 pr-2 text-right text-foreground">{b.runs}</td>
+                  <td className="py-1.5 pr-2 text-right text-primary">{b.wickets}</td>
+                  <td className="py-1.5 text-right text-muted-foreground">{econ}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
