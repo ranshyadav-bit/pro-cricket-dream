@@ -5,6 +5,7 @@ import { GameShell } from "@/components/game/GameShell";
 import { GamePanel, StatBox } from "@/components/game/Panel";
 import { loadSave, writeSave } from "@/game/storage";
 import { mergeMatchStats } from "@/game/career";
+import { maybeScoutOffer } from "@/game/scouts";
 import {
   aiBowlerDelivery,
   oversForFormat,
@@ -317,6 +318,12 @@ function MatchInner({
       length: ai.length,
       bowlerRating: 50 + Math.floor(Math.random() * 25),
       pressure,
+      ctx: {
+        format: fixture.format,
+        ballsRemaining: Math.max(0, oversPerInnings * 6 - inn.balls),
+        runsNeeded: target ? Math.max(0, target - inn.runs) : undefined,
+        wicketsDown: inn.wickets,
+      },
     });
     applyStrikerBall(outcome, true);
   }
@@ -456,6 +463,13 @@ function MatchInner({
       length: bowlingChoice.length,
       batterRating: aiBatterRating,
       pressure,
+      ctx: {
+        format: fixture.format,
+        ballsRemaining: Math.max(0, oversPerInnings * 6 - inn.balls),
+        runsNeeded: target ? Math.max(0, target - inn.runs) : undefined,
+        wicketsDown: inn.wickets,
+        bowlerWicketsTaken: inn.playerWicketsTaken,
+      },
     });
     setInnings((all) => {
       const next = [...all];
@@ -618,6 +632,14 @@ function MatchInner({
     else if (matchSummary.runs <= 5 && matchSummary.wickets === 0) { conf = Math.max(0, conf - 8); mor = Math.max(0, mor - 3); }
     if (won) mor = Math.min(100, mor + 4);
     if (!won && !tied) mor = Math.max(0, mor - 2);
+    const scoutMsg = maybeScoutOffer(save, {
+      runs: myRuns,
+      balls: myBalls,
+      wickets,
+      runsConceded,
+      ballsBowled,
+      out: myOut,
+    });
     const newSave: SaveGame = {
       ...save,
       stats: newStats,
@@ -626,6 +648,7 @@ function MatchInner({
       fixtures: save.fixtures.map((f) => f.id === fixture.id ? { ...f, played: true } : f),
       matchInProgress: null, // clear snapshot on completion
       inbox: [
+        ...(scoutMsg ? [scoutMsg] : []),
         {
           id: Math.random().toString(36).slice(2, 10),
           week: fixture.week, year: fixture.year,
