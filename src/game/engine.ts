@@ -50,6 +50,8 @@ export interface MatchContext {
   ballsRemaining?: number;
   // Runs needed to win (chase). undefined = batting first / no chase
   runsNeeded?: number;
+  wicketsDown?: number;
+  bowlerWicketsTaken?: number;
 }
 
 interface ShotProfile {
@@ -113,6 +115,35 @@ function chaseAggression(ctx: MatchContext): number {
   if (required >= 1.4) return 0.9;
   if (required >= 1.0) return 0.5;
   return 0.1;
+}
+
+function battingAggressionFactor(ctx: MatchContext): number {
+  const wicketsDown = ctx.wicketsDown ?? 0;
+  const chase = chaseAggression(ctx);
+  switch (ctx.format) {
+    case "T20":
+      return 1.2 + chase - wicketsDown * 0.03;
+    case "ODI":
+      return 0.85 + chase * 0.75 - wicketsDown * 0.025;
+    case "Test":
+      return 0.18 + chase * 0.4 - wicketsDown * 0.02;
+    case "Club":
+      return 0.6 + chase * 0.55 - wicketsDown * 0.025;
+  }
+}
+
+function bowlingRunWeights(ctx: MatchContext): number[] {
+  const chase = chaseAggression(ctx);
+  switch (ctx.format) {
+    case "T20":
+      return chase >= 0.9 ? [24, 25, 11, 2, 23, 15] : [30, 30, 10, 2, 18, 10];
+    case "ODI":
+      return chase >= 0.9 ? [27, 28, 12, 2, 21, 10] : [34, 31, 12, 2, 15, 6];
+    case "Test":
+      return [57, 24, 7, 1, 9, 2];
+    case "Club":
+      return [38, 30, 11, 2, 14, 5];
+  }
 }
 
 export interface ResolveBattingArgs {
@@ -190,12 +221,14 @@ export function resolveBatting(args: ResolveBattingArgs): BallOutcome {
   // ------- Run resolution -------
   const fmtBias = formatBoundaryBias(ctx);
   const chaseBias = chaseAggression(ctx);
+  const aggression = Math.max(0.12, battingAggressionFactor(ctx));
 
   const adjustedWeights = profile.baseRuns.map((r, i) => {
     let w = profile.weights[i];
-    if (r >= 4) w *= (1 + skillRatio * 0.5 + lengthBonus + conf * 0.25) * (0.6 + fmtBias + chaseBias);
-    if (r === 0) w *= 1 + (1 - skillRatio) * 0.4 - lengthBonus * 0.3;
-    if (r === 6) w *= 1 + (s.power - 50) / 70 + chaseBias * 0.6;
+    if (r >= 4) w *= (1 + skillRatio * 0.5 + lengthBonus + conf * 0.25) * (0.55 + fmtBias + aggression + chaseBias);
+    if (r === 0) w *= Math.max(0.35, 1.12 + (1 - skillRatio) * 0.4 - lengthBonus * 0.3 - aggression * 0.35);
+    if (r === 1 || r === 2) w *= 0.95 + aggression * 0.12;
+    if (r === 6) w *= 1 + (s.power - 50) / 70 + chaseBias * 0.6 + aggression * 0.15;
     // Fitness mult: low fitness scales runs down
     if (r > 0) w *= fitMult;
     return Math.max(0.4, w);
@@ -258,6 +291,7 @@ export interface ResolveBowlingArgs {
 
 export function resolveBowling(args: ResolveBowlingArgs): BallOutcome {
   const { player, delivery, line, length, batterRating, pressure } = args;
+  const ctx = args.ctx ?? { format: "T20" as const };
   const s = player.skills;
   const bowlScore = (s.pace + s.accuracy + s.movement + s.variation + s.composure) / 5;
   const skillRatio = (bowlScore - batterRating + 50) / 100;
@@ -287,6 +321,10 @@ export function resolveBowling(args: ResolveBowlingArgs): BallOutcome {
   if ((delivery === "Off-Break" || delivery === "Leg-Break" || delivery === "Doosra") && length === "Good") wicketChance += 0.025;
   wicketChance *= 1 + pressure * 0.15;
   wicketChance *= fitWicketMult;
+  const wicketsTaken = ctx.bowlerWicketsTaken ?? 0;
+  if (wicketsTaken >= 5) wicketChance *= 0.04;
+  else if (wicketsTaken >= 4) wicketChance *= 0.18;
+  else if (wicketsTaken >= 3) wicketChance *= 0.5;
   // Hard cap — base wicket rate per ball about 1/30 even on great deliveries
   wicketChance = clamp(wicketChance, 0.005, 0.10);
 
@@ -303,13 +341,14 @@ export function resolveBowling(args: ResolveBowlingArgs): BallOutcome {
 
   // Run outcome
   const runs: number[] = [0, 1, 2, 3, 4, 6];
-  let weights = [40, 30, 10, 2, 12, 6];
+  let weights = bowlingRunWeights(ctx);
   if (length === "Short" && (line === "Off" || line === "Wide")) weights = [25, 25, 10, 2, 25, 13];
   if (length === "Yorker") weights = [55, 30, 5, 1, 7, 2];
   if (length === "Full" && line === "Stump") weights = [45, 30, 10, 2, 10, 3];
+  const attackBias = 1 + chaseAggression(ctx) * 0.65 + (ctx.format === "T20" ? 0.22 : ctx.format === "ODI" ? 0.1 : 0);
   weights = weights.map((w, i) => {
-    if (runs[i] >= 4) return w * clamp(1 - skillRatio * 0.4, 0.3, 1.5) * fitEconBoost;
-    if (runs[i] === 0) return w * (1 + skillRatio * 0.3) / fitEconBoost;
+    if (runs[i] >= 4) return w * clamp(1 - skillRatio * 0.4, 0.3, 1.5) * fitEconBoost * attackBias;
+    if (runs[i] === 0) return w * (1 + skillRatio * 0.3) / (fitEconBoost * attackBias);
     return w;
   });
   const r = weighted(runs, weights);

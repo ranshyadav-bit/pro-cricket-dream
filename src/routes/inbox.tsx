@@ -44,7 +44,7 @@ function Inbox() {
     const earnings = basePrice + signingBonus;
     const cs = save.contractSlots ?? { franchise: null, nation: null };
     const isFranchise = !!o.league;
-    const isNation = o.tier === "International";
+    const isNation = o.tier === "International" || o.tier === "National A";
     const updatedSlots = { ...cs };
     if (isFranchise && o.league) {
       updatedSlots.franchise = { team: o.fromTeam, league: o.league, expiresYear: save.year + o.durationYears };
@@ -52,9 +52,8 @@ function Inbox() {
     if (isNation) {
       updatedSlots.nation = { team: o.fromTeam, expiresYear: save.year + o.durationYears };
     }
-    // Decide what 'team' becomes — franchise overrides display, but nation stays in slot
-    const newTeam = isFranchise ? o.fromTeam : (isNation ? o.fromTeam : save.player.team);
-    const newTier = isFranchise ? "Franchise T20" : (isNation ? "International" : save.player.tier);
+    const newTeam = isFranchise || isNation ? o.fromTeam : save.player.team;
+    const newTier = isFranchise ? "Franchise T20" : isNation ? o.tier : save.player.tier;
 
     const updatedPlayer = {
       ...save.player,

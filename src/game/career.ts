@@ -9,7 +9,6 @@ import type {
 import { clamp, overallRating, trainSkill } from "./rating";
 import { emptyStats, generateFixtures, makeId } from "./factory";
 import { advanceLeagues, createLeaguesState } from "./leagues";
-import { generateAnnualOffers } from "./contracts";
 import { newTournamentsForYear, advanceTournaments, tournamentsForYear } from "./tournaments";
 import { maybeCaptainPromotion, maybeScoutOffer } from "./scouts";
 
@@ -207,22 +206,6 @@ export function weeklyDrift(player: Player, performance: "good" | "neutral" | "b
   return { ...player, fitness, confidence, morale };
 }
 
-// Tier promotion
-export function checkPromotion(save: SaveGame): { tier: Player["tier"]; team?: string; message?: string } | null {
-  const rating = overallRating(save.player);
-  const t = save.player.tier;
-  if (t === "Club" && rating >= 62 && save.stats.matches >= 5) {
-    return { tier: "Domestic", team: pickTeam("Domestic", save.player.nation), message: "Selected for the State squad — domestic cricket awaits!" };
-  }
-  if (t === "Domestic" && rating >= 72 && save.stats.matches >= 20) {
-    return { tier: "National A", team: pickTeam("National A", save.player.nation), message: "Called up to the National A side — one step from full honours." };
-  }
-  if (t === "National A" && rating >= 78 && save.stats.matches >= 35) {
-    return { tier: "International", team: `${save.player.nation} National Team`, message: "INTERNATIONAL CALL-UP! You've earned your country's cap." };
-  }
-  return null;
-}
-
 const DOMESTIC_TEAMS_BY_NATION: Record<string, string[]> = {
   Australia: ["NSW Blues", "Victoria Bushrangers", "Queensland Bulls", "WA Warriors"],
   England: ["Surrey", "Yorkshire", "Lancashire", "Middlesex"],
@@ -234,16 +217,6 @@ const DOMESTIC_TEAMS_BY_NATION: Record<string, string[]> = {
   "Sri Lanka": ["Colombo", "Galle", "Kandy", "Jaffna"],
   Bangladesh: ["Dhaka", "Chittagong", "Khulna", "Rajshahi"],
 };
-
-function pickTeam(tier: Player["tier"], nation: Player["nation"]): string {
-  if (tier === "International") return `${nation} National Team`;
-  if (tier === "National A") return `${nation} A`;
-  if (tier === "Domestic") {
-    const teams = DOMESTIC_TEAMS_BY_NATION[nation] ?? ["Domestic XI"];
-    return teams[Math.floor(Math.random() * teams.length)];
-  }
-  return "Local Club";
-}
 
 // Decide auto behaviour: heavy training pre-match, rest after a match
 function nextActionForWeek(save: SaveGame): "heavyTrain" | "rest" | "neutral" {
@@ -373,37 +346,6 @@ export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean; skipAuto
   // Advance ICC tournaments
   if (!next.tournaments) next.tournaments = { active: newTournamentsForYear(next.year), history: [] };
   next.tournaments = advanceTournaments(next.tournaments, next.week, next.year);
-
-  // Annual contract offers — Week 48
-  if (!next.offerYears) next.offerYears = [];
-  if (next.week >= 48 && !next.offerYears.includes(next.year) && !next.player.retired) {
-    const offers = generateAnnualOffers(next);
-    if (offers.length > 0) {
-      next.offerYears = [...next.offerYears, next.year];
-      for (const o of offers) {
-        // Skip if conflicts with existing contract slot
-        const cs = next.contractSlots ?? { franchise: null, nation: null };
-        const isFranchise = !!o.league;
-        const isNation = o.tier === "International";
-        if (isFranchise && cs.franchise) continue;
-        if (isNation && cs.nation) continue;
-        messages.push({
-          id: makeId(), week: next.week, year: next.year,
-          from: o.fromTeam,
-          subject: `Contract offer · ${o.league ?? o.format} · $${(o.basePrice + o.signingBonus).toLocaleString()}k`,
-          body:
-            `${o.fromTeam} have made a formal offer.\n\n` +
-            `Format: ${o.format}${o.league ? " (" + o.league + ")" : ""}\n` +
-            `Base price: $${o.basePrice.toLocaleString()}k\n` +
-            `Signing bonus: $${o.signingBonus.toLocaleString()}k\n` +
-            `Length: ${o.durationYears} year${o.durationYears > 1 ? "s" : ""}\n\n` +
-            `Open this message in your inbox to accept, decline, or negotiate.`,
-          read: false, type: "contract",
-          offer: { ...o },
-        });
-      }
-    }
-  }
 
   // Retirement check
   if ((next.player.age >= 35 && (next.player.fitness < 60 || Math.random() < 0.05)) || next.player.age >= 40) {

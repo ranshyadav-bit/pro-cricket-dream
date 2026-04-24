@@ -10,7 +10,7 @@ import type {
 } from "./types";
 import { createLeaguesState } from "./leagues";
 import { newTournamentsForYear } from "./tournaments";
-import { findLeagueForTeam, pickClubOpponent, pickInternationalOpponent, pickLeagueOpponent } from "./opponents";
+import { findLeagueForTeam, pickClubOpponent, pickInternationalOpponent, pickLeagueOpponent, pickNationalAOpponent } from "./opponents";
 
 const NATION_CLUBS: Record<Nation, string[]> = {
   Australia: ["Sydney Strikers CC", "Melbourne Suburban CC", "Perth Coastal CC"],
@@ -88,6 +88,8 @@ export function generateFixtures(year: number, tier: Player["tier"], player?: Pl
   const list: Fixture[] = [];
   const playerTeam = player?.team ?? "";
   const playerLeague = playerTeam ? findLeagueForTeam(playerTeam) : null;
+  const isNationalTeam = playerTeam.includes("National Team");
+  const isNationalA = playerTeam.endsWith(" A") || tier === "National A";
 
   // 52-week schedule. Goal: ~3 league games every 10 weeks + many internationals at top tiers.
   // Approach: walk every week, decide if we have a fixture and what kind.
@@ -105,16 +107,22 @@ export function generateFixtures(year: number, tier: Player["tier"], player?: Pl
     } else if (tier === "Domestic" || tier === "National A") {
       // Domestic — local club/state opponents only (never national teams)
       if (w % 2 !== 0 && Math.random() < 0.5) continue;
-      const r = Math.random();
-      if (r < 0.4) { competition = "T20 Blast"; format = "T20"; }
-      else if (r < 0.75) { competition = "State Shield"; format = "Club"; }
-      else { competition = "National A Tour"; format = "ODI"; }
-      opponent = pickClubOpponent();
+      if (isNationalA) {
+        competition = `${player?.nation ?? "National"} A Tour`;
+        opponent = player ? pickNationalAOpponent(player) : "Touring A";
+        format = Math.random() < 0.55 ? "ODI" : "T20";
+      } else {
+        const r = Math.random();
+        if (r < 0.4) { competition = "T20 Blast"; format = "T20"; }
+        else if (r < 0.75) { competition = "State Shield"; format = "Club"; }
+        else { competition = "County Championship"; format = "Test"; }
+        opponent = pickClubOpponent();
+      }
     } else if (tier === "International") {
       // International — denser schedule.
       // 10-week block: 1-3 league (T20 league v league), 4-7 international, 8-9 rest, 10 international.
       const blockWk = ((w - 1) % 10) + 1;
-      if (blockWk <= 3 && playerLeague) {
+      if (blockWk <= 3 && playerLeague && !isNationalTeam) {
         // League block — STRICTLY league v league (always 20 overs)
         competition = playerLeague;
         opponent = pickLeagueOpponent(playerTeam, playerLeague);

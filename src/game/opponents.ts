@@ -33,6 +33,12 @@ export function pickInternationalOpponent(player: Player): string {
   return `${opp} National Team`;
 }
 
+export function pickNationalAOpponent(player: Player): string {
+  const others = OTHER_NATIONS[player.nation];
+  const opp = others[Math.floor(Math.random() * others.length)];
+  return `${opp} A`;
+}
+
 // Pick a generic club opponent (used at Club tier)
 const GENERIC_CLUBS = [
   "Northern Stars CC", "Southern Lions CC", "Eastern Tigers CC", "Western Eagles CC",

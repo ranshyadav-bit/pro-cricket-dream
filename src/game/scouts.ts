@@ -8,6 +8,8 @@ import type { InboxMessage, Player, SaveGame } from "./types";
 
 export type ScoutGrade = "A" | "B" | "C" | "D";
 
+const SCOUT_APPEARANCE_RATE = 0.2;
+
 export function gradeMatch(perf: { runs: number; balls: number; wickets: number; runsConceded: number; ballsBowled: number; out: boolean }): ScoutGrade {
   let score = 0;
   if (perf.runs >= 100) score += 5;
@@ -25,18 +27,6 @@ export function gradeMatch(perf: { runs: number; balls: number; wickets: number;
   return "D";
 }
 
-function scoutChance(grade: ScoutGrade, rating: number): number {
-  // Higher grade + higher rating = better odds. Base 20% as user specified.
-  let p = 0.05;
-  if (grade === "D") p = 0.05;
-  if (grade === "C") p = 0.18;
-  if (grade === "B") p = 0.32;
-  if (grade === "A") p = 0.55;
-  // Rating scales it slightly
-  p *= 0.7 + Math.min(1.0, (rating - 55) / 50);
-  return Math.min(0.85, Math.max(0.02, p));
-}
-
 function makeId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -45,60 +35,125 @@ function randomFromArr<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function scaledNationalValue(rating: number, factor: number): { basePrice: number; signingBonus: number } {
+  const base = Math.max(120, Math.round((220 + Math.max(0, rating - 60) * 42) * factor));
+  return {
+    basePrice: base,
+    signingBonus: Math.round(base * 0.18),
+  };
+}
+
 // Build a scout offer based on the player's current state, grade, and a target competition
 export function generateScoutOffer(save: SaveGame, grade: ScoutGrade): ContractOffer | null {
   const rating = overallRating(save.player);
   const player = save.player;
-
-  // Pick scout type based on rating + current tier
-  // Above 78 → international scout from own nation (if not already national)
-  // Above 70 → league scout
-  // Else → domestic / no offer
-  const hasNational = save.contractValue !== undefined && save.player.tier === "International"; // simplified
-  const offers: Array<"International" | "IPL" | "BBL" | "PSL" | "County"> = [];
-  if (rating >= 78 && !hasNational) offers.push("International");
-  if (rating >= 70) offers.push("IPL", "BBL", "PSL");
-  if (rating >= 62) offers.push("County");
-  if (offers.length === 0) return null;
-
-  const choice = randomFromArr(offers);
   const factor = grade === "A" ? 1.6 : grade === "B" ? 1.2 : grade === "C" ? 0.9 : 0.7;
+  const contractSlots = save.contractSlots ?? { franchise: null, nation: null };
+  const hasNationSlot = !!contractSlots.nation;
+  const hasFranchiseSlot = !!contractSlots.franchise;
+  const offers: ContractOffer[] = [];
 
-  if (choice === "International") {
-    const base = Math.round((400 + (rating - 75) * 50) * factor);
-    return {
+  if (!hasNationSlot && rating >= 60) {
+    const value = scaledNationalValue(rating, factor * 0.8);
+    offers.push({
       id: makeId(),
-      fromTeam: `${player.nation} National Selectors`,
-      format: "Multi",
-      tier: "International",
-      basePrice: base,
-      signingBonus: Math.round(base * 0.2),
-      durationYears: 2,
-      reasoning: `A national selector watched your last outing and wants you in the squad.`,
-    };
+      fromTeam: `${player.nation} A`,
+      format: "ODI",
+      tier: "National A",
+      basePrice: value.basePrice,
+      signingBonus: value.signingBonus,
+      durationYears: 1,
+      reasoning: `${player.nation} A selectors want you on the next A-tour squad.`,
+    });
   }
 
-  // League scout
-  const teams = LEAGUE_BY_ID[choice];
-  const team = randomFromArr(teams);
-  let base: number;
-  if (rating >= 88) base = 1400 + (rating - 88) * 220;
-  else if (rating >= 80) base = 550 + (rating - 80) * 100;
-  else if (rating >= 72) base = 180 + (rating - 72) * 45;
-  else base = 60 + Math.max(0, rating - 60) * 8;
-  base = Math.round(base * factor * (0.85 + Math.random() * 0.3));
-  const bonus = Math.round(base * (0.1 + Math.random() * 0.18));
-  return {
-    id: makeId(),
-    fromTeam: team.name,
-    league: choice,
-    format: choice === "County" ? "Multi" : "T20",
-    tier: choice === "County" ? "Domestic" : "Franchise T20",
-    basePrice: base,
-    signingBonus: bonus,
-    durationYears: choice === "County" ? 2 : 1,
-    reasoning: `Scout from ${team.short} watched you live. ${grade === "A" ? "Marquee target." : grade === "B" ? "Strong interest." : "Worth a punt."}`,
-  };
+  if (!hasNationSlot && rating >= 76 && grade !== "D") {
+    const value = scaledNationalValue(rating, factor);
+    offers.push({
+      id: makeId(),
+      fromTeam: `${player.nation} National Team`,
+      format: "T20",
+      tier: "International",
+      basePrice: value.basePrice,
+      signingBonus: value.signingBonus,
+      durationYears: 1,
+      reasoning: `${player.nation} selectors want you in the T20 World Cup squad pool.`,
+    });
+  }
+
+  if (!hasNationSlot && rating >= 80 && (grade === "A" || grade === "B" || Math.random() < 0.5)) {
+    const value = scaledNationalValue(rating, factor * 1.08);
+    offers.push({
+      id: makeId(),
+      fromTeam: `${player.nation} National Team`,
+      format: "ODI",
+      tier: "International",
+      basePrice: value.basePrice,
+      signingBonus: value.signingBonus,
+      durationYears: 1,
+      reasoning: `${player.nation} selectors have marked you for the ODI Cricket World Cup squad.`,
+    });
+  }
+
+  if (!hasNationSlot && rating >= 82 && (grade === "A" || grade === "B")) {
+    const value = scaledNationalValue(rating, factor * 1.15);
+    offers.push({
+      id: makeId(),
+      fromTeam: `${player.nation} National Team`,
+      format: "Test",
+      tier: "International",
+      basePrice: value.basePrice,
+      signingBonus: value.signingBonus,
+      durationYears: 2,
+      reasoning: `${player.nation} selectors see you as a World Test Championship option.`,
+    });
+  }
+
+  if (!hasFranchiseSlot && rating >= 70) {
+    const leagues: Array<"IPL" | "BBL" | "PSL"> = ["IPL", "BBL", "PSL"];
+    for (const league of leagues) {
+      const teams = LEAGUE_BY_ID[league];
+      const team = randomFromArr(teams);
+      let base: number;
+      if (rating >= 88) base = 1400 + (rating - 88) * 220;
+      else if (rating >= 80) base = 550 + (rating - 80) * 100;
+      else if (rating >= 72) base = 180 + (rating - 72) * 45;
+      else base = 60 + Math.max(0, rating - 60) * 8;
+      base = Math.round(base * factor * (0.85 + Math.random() * 0.3));
+      const bonus = Math.round(base * (0.1 + Math.random() * 0.18));
+      offers.push({
+        id: makeId(),
+        fromTeam: team.name,
+        league,
+        format: "T20",
+        tier: "Franchise T20",
+        basePrice: base,
+        signingBonus: bonus,
+        durationYears: 1,
+        reasoning: `Scout from ${team.short} watched you live. ${grade === "A" ? "Marquee target." : grade === "B" ? "Strong interest." : "Worth a punt."}`,
+      });
+    }
+  }
+
+  if (rating >= 64) {
+    const teams = LEAGUE_BY_ID.County;
+    const team = randomFromArr(teams);
+    const base = Math.round((120 + Math.max(0, rating - 60) * 22) * factor);
+    offers.push({
+      id: makeId(),
+      fromTeam: team.name,
+      league: "County",
+      format: "Multi",
+      tier: "Domestic",
+      basePrice: base,
+      signingBonus: Math.round(base * 0.14),
+      durationYears: 2,
+      reasoning: `${team.name} want to bring you in for a county deal.`,
+    });
+  }
+
+  if (offers.length === 0) return null;
+  return randomFromArr(offers);
 }
 
 export function buildScoutInboxMessage(week: number, year: number, offer: ContractOffer): InboxMessage {
@@ -106,7 +161,7 @@ export function buildScoutInboxMessage(week: number, year: number, offer: Contra
     id: makeId(),
     week, year,
     from: `Scout — ${offer.fromTeam}`,
-    subject: `Scout interest · ${offer.league ?? offer.format} · $${(offer.basePrice + offer.signingBonus).toLocaleString()}k`,
+    subject: `Scout interest · ${offer.fromTeam} · $${(offer.basePrice + offer.signingBonus).toLocaleString()}k`,
     body:
       `${offer.reasoning}\n\n` +
       `${offer.fromTeam} have tabled an offer:\n` +
@@ -127,11 +182,9 @@ export function maybeScoutOffer(
   perf: { runs: number; balls: number; wickets: number; runsConceded: number; ballsBowled: number; out: boolean },
 ): InboxMessage | null {
   const grade = gradeMatch(perf);
-  const rating = overallRating(save.player);
-  const chance = scoutChance(grade, rating);
-  if (Math.random() > chance) return null;
   const offer = generateScoutOffer(save, grade);
   if (!offer) return null;
+  if (Math.random() > SCOUT_APPEARANCE_RATE) return null;
   return buildScoutInboxMessage(save.week, save.year, offer);
 }
 
@@ -179,7 +232,7 @@ export function maybeCaptainPromotion(save: SaveGame): InboxMessage | null {
 export function offerSlotConflict(save: SaveGame, offer: { league?: "IPL" | "BBL" | "PSL" | "County"; tier: Player["tier"] }): string | null {
   const cs = save.contractSlots ?? { franchise: null, nation: null };
   const isFranchise = !!offer.league && offer.league !== "County";
-  const isNation = offer.tier === "International";
+  const isNation = offer.tier === "International" || offer.tier === "National A";
   if (isFranchise && cs.franchise) {
     return `You're already contracted to ${cs.franchise.team} (${cs.franchise.league}). Decline or wait for it to expire.`;
   }
