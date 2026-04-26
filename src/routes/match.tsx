@@ -466,7 +466,11 @@ function MatchInner({
     o: BallOutcome,
     striker: { name: string; isPlayer: boolean } | null,
     bowler: { name: string; isPlayer: boolean } | null,
+    fieldingSquad: RosterPlayer[],
   ) {
+    const legal = isLegalBall(o);
+    const overBall = overBallAfterDelivery(ci.balls, o);
+    addExtras(ci, o);
     // Update bowler stats (legal balls only)
     if (bowler) {
       let bw = ci.bowlers.find((b) => b.name === bowler.name);
@@ -479,7 +483,7 @@ function MatchInner({
         };
         ci.bowlers.push(bw);
       }
-      if (!o.isExtra) {
+      if (legal) {
         bw.balls += 1;
         bw._curOverBalls += 1;
       }
@@ -512,13 +516,41 @@ function MatchInner({
         if (o.isWicket) {
           bt.out = true;
           bt.dismissal = (o.wicketType ?? "Bowled") as DismissalKind;
-          if (bowler && bt.dismissal !== "Run Out") bt.bowler = bowler.name;
+          bt.bowler = bowler && bt.dismissal !== "Run Out" ? bowler.name : undefined;
+          bt.fielder = pickFielderName(bt.dismissal, fieldingSquad, bowler?.name);
+          bt.overBall = overBall;
+          bt.scoreAtDismissal = `${ci.runs + o.runs}/${ci.wickets + 1}`;
+          ci.fallOfWickets.push({
+            wicket: ci.wickets + 1,
+            batter: bt.name,
+            score: bt.scoreAtDismissal,
+            overBall,
+            dismissal: bt.dismissal,
+            bowler: bt.bowler,
+            fielder: bt.fielder,
+            isPlayer: bt.isPlayer,
+          });
         }
       }
     } else if (striker && o.isExtra && o.isWicket) {
       // run-out off an extra (rare) — still mark the batter
       const bt = ci.batters.find((b) => b.name === striker.name);
-      if (bt) { bt.out = true; bt.dismissal = "Run Out"; }
+      if (bt) {
+        bt.out = true;
+        bt.dismissal = "Run Out";
+        bt.fielder = pickFielderName("Run Out", fieldingSquad, bowler?.name);
+        bt.overBall = overBall;
+        bt.scoreAtDismissal = `${ci.runs + o.runs}/${ci.wickets + 1}`;
+        ci.fallOfWickets.push({
+          wicket: ci.wickets + 1,
+          batter: bt.name,
+          score: bt.scoreAtDismissal,
+          overBall,
+          dismissal: "Run Out",
+          fielder: bt.fielder,
+          isPlayer: bt.isPlayer,
+        });
+      }
     }
   }
 
