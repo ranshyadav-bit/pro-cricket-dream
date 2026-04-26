@@ -573,6 +573,8 @@ function MatchInner({
       // Deep-clone scorecard arrays so we can mutate
       ci.batters = ci.batters.map((b) => ({ ...b }));
       ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+      ci.extras = cloneExtras(ci.extras);
+      ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
       // Mark openers in
       const battingSq = ci.battingTeam === myTeam ? myBattingOrder : oppBattingOrder;
@@ -607,6 +609,7 @@ function MatchInner({
         const striker = liveBatters[0] ?? null;
         const bw = pickAiBowler(ci, bowlingPool);
         const bowler = bw ? { name: bw.name, isPlayer: false } : null;
+        const fieldingSq = ci.bowlingTeam === myTeam ? mySquad : oppSquad;
 
         let outcome: BallOutcome;
         if (isWicket) {
@@ -624,7 +627,7 @@ function MatchInner({
           };
         }
 
-        recordBallToScorecard(ci, outcome, striker ? { name: striker.name, isPlayer: false } : null, bowler);
+        recordBallToScorecard(ci, outcome, striker ? { name: striker.name, isPlayer: false } : null, bowler, fieldingSq);
 
         ci.balls += 1;
         ci.runs += runs;
