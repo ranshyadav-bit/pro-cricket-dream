@@ -694,7 +694,6 @@ function MatchInner({
       ci.extras = cloneExtras(ci.extras);
       ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
-      ci.runs += o.runs;
       const onStrikeIsPlayer = ci.strikerIsPlayer;
 
       // Run-out chance on a 2 (rare) — applies to whoever ran
@@ -727,14 +726,15 @@ function MatchInner({
 
       recordBallToScorecard(ci, outcomeForCard, strikerEntry, bowlerEntry, fieldingSq);
 
+      ci.runs += outcomeForCard.runs;
       if (isLegalBall(outcomeForCard)) ci.balls += 1;
 
       if (onStrikeIsPlayer && fromPlayer) {
-        if (!o.isExtra) {
+        if (!outcomeForCard.isExtra) {
           ci.playerBalls += 1;
-          ci.playerRuns += o.runs;
-          if (o.runs === 4) ci.playerFours += 1;
-          if (o.runs === 6) ci.playerSixes += 1;
+          ci.playerRuns += outcomeForCard.runs;
+          if (outcomeForCard.runs === 4) ci.playerFours += 1;
+          if (outcomeForCard.runs === 6) ci.playerSixes += 1;
         }
         if (o.isWicket || runOut) {
           ci.wickets += 1;
@@ -748,9 +748,9 @@ function MatchInner({
           }
         }
       } else if (!onStrikeIsPlayer && !fromPlayer) {
-        if (!o.isExtra) {
+        if (!outcomeForCard.isExtra) {
           ci.partnerBalls += 1;
-          ci.partnerRuns += o.runs;
+          ci.partnerRuns += outcomeForCard.runs;
         }
         if (o.isWicket || runOut) {
           ci.wickets += 1;
@@ -775,7 +775,7 @@ function MatchInner({
         }
       }
       // Strike rotation: odd runs swap; end of over swaps too
-      if (!o.isExtra && !o.isWicket && (o.runs === 1 || o.runs === 3)) {
+      if (!outcomeForCard.isExtra && !outcomeForCard.isWicket && (outcomeForCard.runs === 1 || outcomeForCard.runs === 3)) {
         ci.strikerIsPlayer = !ci.strikerIsPlayer;
       }
       if (isLegalBall(outcomeForCard) && (ci.balls % 6 === 0)) {
