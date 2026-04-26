@@ -380,6 +380,7 @@ function MatchInner({
   // Tab on result screen
   const [scorecardTab, setScorecardTab] = useState<0 | 1>(0);
   const [dismissalDetail, setDismissalDetail] = useState<DismissalDetail | null>(null);
+  const shownDismissalKeys = useRef<Set<string>>(new Set());
 
   const [innings, setInnings] = useState<InningsState[]>(() => {
     if (snap) {
