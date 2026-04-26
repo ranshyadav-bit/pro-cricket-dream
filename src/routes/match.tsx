@@ -351,6 +351,8 @@ function MatchInner({
           batters: anyI.batters ?? emptyBatters(battingSq, save.player.name),
           bowlers: anyI.bowlers ?? emptyBowlers(bowlingSq, save.player.name),
           battedCount: anyI.battedCount ?? 0,
+          extras: anyI.extras ?? { ...EMPTY_EXTRAS },
+          fallOfWickets: anyI.fallOfWickets ?? [],
         } as InningsState;
       });
     }
