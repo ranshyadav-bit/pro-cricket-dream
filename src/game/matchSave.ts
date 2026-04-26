@@ -2,6 +2,54 @@
 
 import type { BallOutcome, ShotType } from "./types";
 
+export type SavedDismissalKind = "Bowled" | "LBW" | "Caught" | "Stumped" | "Run Out";
+
+export interface SavedBatterCard {
+  name: string;
+  isPlayer: boolean;
+  runs: number;
+  balls: number;
+  fours: number;
+  sixes: number;
+  out: boolean;
+  dismissal?: SavedDismissalKind;
+  bowler?: string;
+  fielder?: string;
+  overBall?: string;
+  scoreAtDismissal?: string;
+  battedOrder: number;
+}
+
+export interface SavedBowlerCard {
+  name: string;
+  isPlayer: boolean;
+  balls: number;
+  runs: number;
+  wickets: number;
+  maidens: number;
+  _curOverRuns: number;
+  _curOverBalls: number;
+}
+
+export interface SavedExtrasBreakdown {
+  wides: number;
+  noBalls: number;
+  byes: number;
+  legByes: number;
+  penalty: number;
+}
+
+export interface SavedFallOfWicket {
+  wicket: number;
+  batter: string;
+  score: string;
+  overBall: string;
+  dismissal: SavedDismissalKind;
+  bowler?: string;
+  fielder?: string;
+  isPlayer: boolean;
+}
+
 export interface InningsSnapshot {
   battingTeam: string;
   bowlingTeam: string;
@@ -26,6 +74,12 @@ export interface InningsSnapshot {
   battingPosition: number;
   // Day for Test format
   day: number;
+  declared?: boolean;
+  batters?: SavedBatterCard[];
+  bowlers?: SavedBowlerCard[];
+  battedCount?: number;
+  extras?: SavedExtrasBreakdown;
+  fallOfWickets?: SavedFallOfWicket[];
 }
 
 export interface MatchSnapshot {
