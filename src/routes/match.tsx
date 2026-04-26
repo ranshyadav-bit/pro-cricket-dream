@@ -691,8 +691,9 @@ function MatchInner({
       const ci = { ...next[currentInn], log: [o, ...next[currentInn].log].slice(0, 25) };
       ci.batters = ci.batters.map((b) => ({ ...b }));
       ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+      ci.extras = cloneExtras(ci.extras);
+      ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
-      if (!o.isExtra) ci.balls += 1;
       ci.runs += o.runs;
       const onStrikeIsPlayer = ci.strikerIsPlayer;
 
@@ -722,8 +723,11 @@ function MatchInner({
       // Identify striker name for scorecard
       const strikerName = onStrikeIsPlayer ? save.player.name : ci.partnerName;
       const strikerEntry = { name: strikerName, isPlayer: onStrikeIsPlayer };
+      const fieldingSq = ci.bowlingTeam === myTeam ? mySquad : oppSquad;
 
-      recordBallToScorecard(ci, outcomeForCard, strikerEntry, bowlerEntry);
+      recordBallToScorecard(ci, outcomeForCard, strikerEntry, bowlerEntry, fieldingSq);
+
+      if (isLegalBall(outcomeForCard)) ci.balls += 1;
 
       if (onStrikeIsPlayer && fromPlayer) {
         if (!o.isExtra) {
@@ -774,7 +778,7 @@ function MatchInner({
       if (!o.isExtra && !o.isWicket && (o.runs === 1 || o.runs === 3)) {
         ci.strikerIsPlayer = !ci.strikerIsPlayer;
       }
-      if (!o.isExtra && (ci.balls % 6 === 0)) {
+      if (isLegalBall(outcomeForCard) && (ci.balls % 6 === 0)) {
         ci.strikerIsPlayer = !ci.strikerIsPlayer;
       }
       next[currentInn] = ci;
