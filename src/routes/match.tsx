@@ -825,6 +825,8 @@ function MatchInner({
         if (ci.balls >= oversPerInnings * 6 || ci.wickets >= 10) return all;
         ci.batters = ci.batters.map((b) => ({ ...b }));
         ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+        ci.extras = cloneExtras(ci.extras);
+        ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
         const r = Math.random();
         let runs = 0; let isWicket = false;
@@ -851,10 +853,12 @@ function MatchInner({
           commentary: runs === 0 ? `Dot.` : runs >= 4 ? `Tail-ender pumps it!` : `${runs} taken.`,
         };
 
-        recordBallToScorecard(ci, outcome, striker ? { name: striker.name, isPlayer: false } : null, { name: bw.name, isPlayer: false });
+        const fieldingSq = ci.bowlingTeam === myTeam ? mySquad : oppSquad;
+        recordBallToScorecard(ci, outcome, striker ? { name: striker.name, isPlayer: false } : null, { name: bw.name, isPlayer: false }, fieldingSq);
 
         ci.log = [outcome, ...ci.log].slice(0, 25);
-        ci.runs += outcome.runs; ci.balls += 1;
+        ci.runs += outcome.runs;
+        if (isLegalBall(outcome)) ci.balls += 1;
         if (outcome.isWicket) {
           ci.wickets += 1;
           // Bring next tail-ender in
