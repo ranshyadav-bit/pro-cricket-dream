@@ -391,7 +391,7 @@ function MatchInner({
         const anyI = i as unknown as Partial<InningsState>;
         return {
           ...i,
-          declared: false,
+          declared: anyI.declared ?? false,
           partnerOut: false,
           batters: anyI.batters ?? emptyBatters(battingSq, save.player.name),
           bowlers: anyI.bowlers ?? emptyBowlers(bowlingSq, save.player.name),
