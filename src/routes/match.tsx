@@ -177,6 +177,12 @@ function extrasTotal(extras: ExtrasBreakdown): number {
   return extras.wides + extras.noBalls + extras.byes + extras.legByes + extras.penalty;
 }
 
+function bowlerRunsCharged(o: BallOutcome): number {
+  if (o.isExtra && (o.extraType === "Wide" || o.extraType === "No Ball")) return o.runs;
+  if (o.isExtra) return 0;
+  return o.runs;
+}
+
 function pickDismissal(bowlerIsSpin: boolean): DismissalKind {
   const r = Math.random();
   if (bowlerIsSpin) {
