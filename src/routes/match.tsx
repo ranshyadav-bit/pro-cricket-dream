@@ -62,6 +62,8 @@ interface BatterCard {
   dismissal?: DismissalKind;
   bowler?: string; // who got him out (bowler name)
   fielder?: string; // for caught/run out
+  overBall?: string;
+  scoreAtDismissal?: string;
   battedOrder: number; // 1..11 — order they walked in (0 = yet to bat)
 }
 
@@ -75,6 +77,29 @@ interface BowlerCard {
   // Internal: track runs in current over to compute maidens
   _curOverRuns: number;
   _curOverBalls: number;
+}
+
+interface ExtrasBreakdown {
+  wides: number;
+  noBalls: number;
+  byes: number;
+  legByes: number;
+  penalty: number;
+}
+
+interface FallOfWicket {
+  wicket: number;
+  batter: string;
+  score: string;
+  overBall: string;
+  dismissal: DismissalKind;
+  bowler?: string;
+  fielder?: string;
+  isPlayer: boolean;
+}
+
+interface DismissalDetail extends FallOfWicket {
+  battingTeam: string;
 }
 
 interface InningsState {
@@ -107,9 +132,13 @@ interface InningsState {
   batters: BatterCard[]; // length 11; order = squad order
   bowlers: BowlerCard[]; // length 11; only used ones get balls > 0
   battedCount: number; // how many batters have come to crease
+  extras: ExtrasBreakdown;
+  fallOfWickets: FallOfWicket[];
 }
 
 const DISMISSAL_TYPES: DismissalKind[] = ["Bowled", "LBW", "Caught", "Stumped", "Run Out"];
+
+const EMPTY_EXTRAS: ExtrasBreakdown = { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 };
 
 function pickDismissal(bowlerIsSpin: boolean): DismissalKind {
   const r = Math.random();
@@ -163,6 +192,8 @@ function emptyInnings(
     batters: emptyBatters(battingSquad, playerName),
     bowlers: emptyBowlers(bowlingSquad, playerName),
     battedCount: 0,
+    extras: { ...EMPTY_EXTRAS },
+    fallOfWickets: [],
   };
 }
 
