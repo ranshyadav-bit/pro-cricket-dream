@@ -440,6 +440,16 @@ function MatchInner({
   const oversBowled = inn ? Math.floor(inn.balls / 6) : 0;
   const ballThisOver = inn ? inn.balls % 6 : 0;
 
+  useEffect(() => {
+    if (!inn || (phase !== "batting" && phase !== "bowling")) return;
+    const latest = inn.fallOfWickets[inn.fallOfWickets.length - 1];
+    if (!latest) return;
+    const key = `${currentInn}-${latest.wicket}-${latest.batter}-${latest.overBall}`;
+    if (shownDismissalKeys.current.has(key)) return;
+    shownDismissalKeys.current.add(key);
+    setDismissalDetail({ ...latest, battingTeam: inn.battingTeam });
+  }, [inn?.fallOfWickets.length, currentInn, phase, inn]);
+
   // For bowling phase
   const [aiBatterRating, setAiBatterRating] = useState(() => 50 + Math.floor(Math.random() * 25));
   const [aiBatterIdx, setAiBatterIdx] = useState(1);
