@@ -962,7 +962,7 @@ function MatchInner({
         ci.balls += 1;
         ci.playerBallsBowled += 1;
       }
-      ci.playerRunsConceded += outcome.runs;
+      ci.playerRunsConceded += bowlerRunsCharged(outcomeForCard);
       if (outcome.isWicket) {
         ci.wickets += 1;
         ci.playerWicketsTaken += 1;
@@ -1798,20 +1798,21 @@ function dismissalText(b: BatterCard): string {
   switch (b.dismissal) {
     case "Bowled": return `b ${b.bowler ?? ""}`;
     case "LBW": return `lbw b ${b.bowler ?? ""}`;
-    case "Caught": return `c & b ${b.bowler ?? ""}`;
-    case "Stumped": return `st b ${b.bowler ?? ""}`;
-    case "Run Out": return `run out`;
+    case "Caught": return `c ${b.fielder ?? "fielder"} b ${b.bowler ?? ""}`;
+    case "Stumped": return `st ${b.fielder ?? "keeper"} b ${b.bowler ?? ""}`;
+    case "Run Out": return `run out ${b.fielder ? `(${b.fielder})` : ""}`;
     default: return "out";
   }
 }
 
 function BattingScorecardTable({
-  inn, title, playerName, fullSquad,
+  inn, title, playerName, fullSquad, onDismissalSelect,
 }: {
   inn: InningsState;
   title: string;
   playerName: string;
   fullSquad: RosterPlayer[];
+  onDismissalSelect: (detail: FallOfWicket) => void;
 }) {
   // Order: by battedOrder (1..n), then yet-to-bat by squad order
   const rows = [...inn.batters].sort((a, b) => {
@@ -1857,7 +1858,19 @@ function BattingScorecardTable({
                   <td className="py-1.5 pr-2 text-display">
                     {b.name}{b.name === playerName ? " (you)" : ""}
                   </td>
-                  <td className="py-1.5 pr-2 text-muted-foreground italic">{dismissalText(b)}</td>
+                  <td className="py-1.5 pr-2 text-muted-foreground italic">
+                    {b.out ? (
+                      <button
+                        onClick={() => {
+                          const fow = inn.fallOfWickets.find((f) => f.batter === b.name && f.overBall === b.overBall);
+                          if (fow) onDismissalSelect(fow);
+                        }}
+                        className="text-left italic text-primary underline-offset-2 hover:underline"
+                      >
+                        {dismissalText(b)}
+                      </button>
+                    ) : dismissalText(b)}
+                  </td>
                   <td className="py-1.5 pr-2 text-right text-foreground">{isYetToBat ? "—" : b.runs}</td>
                   <td className="py-1.5 pr-2 text-right text-muted-foreground">{isYetToBat ? "—" : b.balls}</td>
                   <td className="py-1.5 pr-2 text-right text-muted-foreground">{isYetToBat ? "—" : b.fours}</td>
@@ -1869,6 +1882,42 @@ function BattingScorecardTable({
           </tbody>
         </table>
       </div>
+      <ExtrasSummary extras={inn.extras} />
+      <FallOfWicketsList wickets={inn.fallOfWickets} onSelect={onDismissalSelect} />
+    </div>
+  );
+}
+
+function ExtrasSummary({ extras }: { extras: ExtrasBreakdown }) {
+  return (
+    <div className="mt-4 rounded-md border border-border bg-background/30 p-3 text-xs">
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Extras — {extrasTotal(extras)}</p>
+      <p className="mt-1 text-muted-foreground">
+        Wides {extras.wides} · No-balls {extras.noBalls} · Byes {extras.byes} · Leg-byes {extras.legByes} · Penalty {extras.penalty}
+      </p>
+    </div>
+  );
+}
+
+function FallOfWicketsList({ wickets, onSelect }: { wickets: FallOfWicket[]; onSelect: (detail: FallOfWicket) => void }) {
+  return (
+    <div className="mt-4 rounded-md border border-border bg-background/30 p-3 text-xs">
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Fall of wickets</p>
+      {wickets.length === 0 ? (
+        <p className="mt-1 text-muted-foreground">No wickets fell.</p>
+      ) : (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {wickets.map((w) => (
+            <button
+              key={`${w.wicket}-${w.batter}-${w.overBall}`}
+              onClick={() => onSelect(w)}
+              className={`rounded-md border px-2 py-1 text-left ${w.isPlayer ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-foreground"}`}
+            >
+              {w.wicket}-{w.score} ({w.batter}, {w.overBall})
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
