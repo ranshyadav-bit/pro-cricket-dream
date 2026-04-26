@@ -902,6 +902,8 @@ function MatchInner({
       const ci = { ...next[currentInn], log: [outcome, ...next[currentInn].log].slice(0, 25) };
       ci.batters = ci.batters.map((b) => ({ ...b }));
       ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+      ci.extras = cloneExtras(ci.extras);
+      ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
       // Determine the AI striker (first not-out batter in batted order, or bring in opener if none yet)
       const battingSq = ci.battingTeam === myTeam ? myBattingOrder : oppBattingOrder;
@@ -928,12 +930,13 @@ function MatchInner({
         outcomeForCard = { ...outcome, wicketType: dis };
       }
 
+      const fieldingSq = ci.bowlingTeam === myTeam ? mySquad : oppSquad;
       recordBallToScorecard(ci, outcomeForCard,
         striker ? { name: striker.name, isPlayer: false } : null,
-        { name: save.player.name, isPlayer: true });
+        { name: save.player.name, isPlayer: true }, fieldingSq);
 
       ci.runs += outcome.runs;
-      if (!outcome.isExtra) {
+      if (isLegalBall(outcomeForCard)) {
         ci.balls += 1;
         ci.playerBallsBowled += 1;
       }
