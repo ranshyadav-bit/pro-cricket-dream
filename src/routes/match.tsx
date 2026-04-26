@@ -1238,6 +1238,13 @@ function MatchInner({
   // ---------- Render ----------
   return (
     <GameShell>
+      {dismissalDetail && (
+        <DismissalDetailModal
+          detail={dismissalDetail}
+          onClose={() => setDismissalDetail(null)}
+        />
+      )}
+
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
           <p className="text-display text-xs text-primary">{fixture.competition} · {fixture.format}{isTest ? ` · Day ${day}` : ""}</p>
@@ -1444,6 +1451,7 @@ function MatchInner({
                 battingInnings={innings.filter((i) => i.battingTeam === myTeam)}
                 bowlingInningsAgainstUs={innings.filter((i) => i.bowlingTeam === myTeam)}
                 fullSquadBatting={myBattingOrder}
+                onDismissalSelect={(detail) => setDismissalDetail({ ...detail, battingTeam: myTeam })}
               />
             )}
             {scorecardTab === 1 && (
@@ -1453,6 +1461,7 @@ function MatchInner({
                 battingInnings={innings.filter((i) => i.battingTeam === opp)}
                 bowlingInningsAgainstUs={innings.filter((i) => i.bowlingTeam === opp)}
                 fullSquadBatting={oppBattingOrder}
+                onDismissalSelect={(detail) => setDismissalDetail({ ...detail, battingTeam: opp })}
               />
             )}
           </div>
