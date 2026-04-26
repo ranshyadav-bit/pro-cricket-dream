@@ -474,9 +474,10 @@ function MatchInner({
     striker: { name: string; isPlayer: boolean } | null,
     bowler: { name: string; isPlayer: boolean } | null,
     fieldingSquad: RosterPlayer[],
-  ) {
+  ): FallOfWicket | null {
     const legal = isLegalBall(o);
     const overBall = overBallAfterDelivery(ci.balls, o);
+    let dismissalEvent: FallOfWicket | null = null;
     addExtras(ci, o);
     // Update bowler stats (legal balls only)
     if (bowler) {
@@ -527,7 +528,7 @@ function MatchInner({
           bt.fielder = pickFielderName(bt.dismissal, fieldingSquad, bowler?.name);
           bt.overBall = overBall;
           bt.scoreAtDismissal = `${ci.runs + o.runs}/${ci.wickets + 1}`;
-          ci.fallOfWickets.push({
+          dismissalEvent = {
             wicket: ci.wickets + 1,
             batter: bt.name,
             score: bt.scoreAtDismissal,
@@ -536,7 +537,8 @@ function MatchInner({
             bowler: bt.bowler,
             fielder: bt.fielder,
             isPlayer: bt.isPlayer,
-          });
+          };
+          ci.fallOfWickets.push(dismissalEvent);
         }
       }
     } else if (striker && o.isExtra && o.isWicket) {
@@ -548,7 +550,7 @@ function MatchInner({
         bt.fielder = pickFielderName("Run Out", fieldingSquad, bowler?.name);
         bt.overBall = overBall;
         bt.scoreAtDismissal = `${ci.runs + o.runs}/${ci.wickets + 1}`;
-        ci.fallOfWickets.push({
+        dismissalEvent = {
           wicket: ci.wickets + 1,
           batter: bt.name,
           score: bt.scoreAtDismissal,
@@ -556,9 +558,11 @@ function MatchInner({
           dismissal: "Run Out",
           fielder: bt.fielder,
           isPlayer: bt.isPlayer,
-        });
+        };
+        ci.fallOfWickets.push(dismissalEvent);
       }
     }
+    return dismissalEvent;
   }
 
   // -------- Mark a batter as having walked in (assigns batted order) --------
