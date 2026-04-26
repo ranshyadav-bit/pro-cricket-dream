@@ -62,6 +62,8 @@ interface BatterCard {
   dismissal?: DismissalKind;
   bowler?: string; // who got him out (bowler name)
   fielder?: string; // for caught/run out
+  overBall?: string;
+  scoreAtDismissal?: string;
   battedOrder: number; // 1..11 — order they walked in (0 = yet to bat)
 }
 
@@ -75,6 +77,29 @@ interface BowlerCard {
   // Internal: track runs in current over to compute maidens
   _curOverRuns: number;
   _curOverBalls: number;
+}
+
+interface ExtrasBreakdown {
+  wides: number;
+  noBalls: number;
+  byes: number;
+  legByes: number;
+  penalty: number;
+}
+
+interface FallOfWicket {
+  wicket: number;
+  batter: string;
+  score: string;
+  overBall: string;
+  dismissal: DismissalKind;
+  bowler?: string;
+  fielder?: string;
+  isPlayer: boolean;
+}
+
+interface DismissalDetail extends FallOfWicket {
+  battingTeam: string;
 }
 
 interface InningsState {
@@ -107,9 +132,56 @@ interface InningsState {
   batters: BatterCard[]; // length 11; order = squad order
   bowlers: BowlerCard[]; // length 11; only used ones get balls > 0
   battedCount: number; // how many batters have come to crease
+  extras: ExtrasBreakdown;
+  fallOfWickets: FallOfWicket[];
 }
 
 const DISMISSAL_TYPES: DismissalKind[] = ["Bowled", "LBW", "Caught", "Stumped", "Run Out"];
+
+const EMPTY_EXTRAS: ExtrasBreakdown = { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 };
+
+function cloneExtras(extras?: ExtrasBreakdown): ExtrasBreakdown {
+  return { ...EMPTY_EXTRAS, ...(extras ?? {}) };
+}
+
+function cloneFallOfWickets(fows?: FallOfWicket[]): FallOfWicket[] {
+  return (fows ?? []).map((f) => ({ ...f }));
+}
+
+function isLegalBall(o: BallOutcome): boolean {
+  return !o.isExtra || o.extraType === "Bye" || o.extraType === "Leg Bye";
+}
+
+function overBallAfterDelivery(currentLegalBalls: number, o: BallOutcome): string {
+  const ballNumber = currentLegalBalls + (isLegalBall(o) ? 1 : 0);
+  return `${Math.floor(ballNumber / 6)}.${ballNumber % 6}`;
+}
+
+function pickFielderName(kind: DismissalKind, fieldingSquad: RosterPlayer[], bowlerName?: string): string | undefined {
+  if (kind !== "Caught" && kind !== "Stumped" && kind !== "Run Out") return undefined;
+  const options = fieldingSquad.filter((p) => p.name !== bowlerName);
+  if (kind === "Stumped") return options.find((p) => p.role === "Wicket-Keeper Bat")?.name ?? options[0]?.name;
+  return options[Math.floor(Math.random() * Math.max(1, options.length))]?.name ?? bowlerName;
+}
+
+function addExtras(ci: InningsState, o: BallOutcome) {
+  if (!o.isExtra) return;
+  if (o.extraType === "Wide") ci.extras.wides += o.runs;
+  else if (o.extraType === "No Ball") ci.extras.noBalls += o.runs;
+  else if (o.extraType === "Bye") ci.extras.byes += o.runs;
+  else if (o.extraType === "Leg Bye") ci.extras.legByes += o.runs;
+  else ci.extras.penalty += o.runs;
+}
+
+function extrasTotal(extras: ExtrasBreakdown): number {
+  return extras.wides + extras.noBalls + extras.byes + extras.legByes + extras.penalty;
+}
+
+function bowlerRunsCharged(o: BallOutcome): number {
+  if (o.isExtra && (o.extraType === "Wide" || o.extraType === "No Ball")) return o.runs;
+  if (o.isExtra) return 0;
+  return o.runs;
+}
 
 function pickDismissal(bowlerIsSpin: boolean): DismissalKind {
   const r = Math.random();
@@ -163,6 +235,8 @@ function emptyInnings(
     batters: emptyBatters(battingSquad, playerName),
     bowlers: emptyBowlers(bowlingSquad, playerName),
     battedCount: 0,
+    extras: { ...EMPTY_EXTRAS },
+    fallOfWickets: [],
   };
 }
 
@@ -305,6 +379,8 @@ function MatchInner({
   const [battingFirst, setBattingFirst] = useState<boolean>(snap ? snap.battingFirst : true);
   // Tab on result screen
   const [scorecardTab, setScorecardTab] = useState<0 | 1>(0);
+  const [dismissalDetail, setDismissalDetail] = useState<DismissalDetail | null>(null);
+  const shownDismissalKeys = useRef<Set<string>>(new Set());
 
   const [innings, setInnings] = useState<InningsState[]>(() => {
     if (snap) {
@@ -315,11 +391,13 @@ function MatchInner({
         const anyI = i as unknown as Partial<InningsState>;
         return {
           ...i,
-          declared: false,
+          declared: anyI.declared ?? false,
           partnerOut: false,
           batters: anyI.batters ?? emptyBatters(battingSq, save.player.name),
           bowlers: anyI.bowlers ?? emptyBowlers(bowlingSq, save.player.name),
           battedCount: anyI.battedCount ?? 0,
+          extras: anyI.extras ?? { ...EMPTY_EXTRAS },
+          fallOfWickets: anyI.fallOfWickets ?? [],
         } as InningsState;
       });
     }
@@ -362,6 +440,16 @@ function MatchInner({
   const oversBowled = inn ? Math.floor(inn.balls / 6) : 0;
   const ballThisOver = inn ? inn.balls % 6 : 0;
 
+  useEffect(() => {
+    if (!inn || (phase !== "batting" && phase !== "bowling")) return;
+    const latest = inn.fallOfWickets[inn.fallOfWickets.length - 1];
+    if (!latest) return;
+    const key = `${currentInn}-${latest.wicket}-${latest.batter}-${latest.overBall}`;
+    if (shownDismissalKeys.current.has(key)) return;
+    shownDismissalKeys.current.add(key);
+    setDismissalDetail({ ...latest, battingTeam: inn.battingTeam });
+  }, [inn?.fallOfWickets.length, currentInn, phase, inn]);
+
   // For bowling phase
   const [aiBatterRating, setAiBatterRating] = useState(() => 50 + Math.floor(Math.random() * 25));
   const [aiBatterIdx, setAiBatterIdx] = useState(1);
@@ -396,7 +484,12 @@ function MatchInner({
     o: BallOutcome,
     striker: { name: string; isPlayer: boolean } | null,
     bowler: { name: string; isPlayer: boolean } | null,
-  ) {
+    fieldingSquad: RosterPlayer[],
+  ): FallOfWicket | null {
+    const legal = isLegalBall(o);
+    const overBall = overBallAfterDelivery(ci.balls, o);
+    let dismissalEvent: FallOfWicket | null = null;
+    addExtras(ci, o);
     // Update bowler stats (legal balls only)
     if (bowler) {
       let bw = ci.bowlers.find((b) => b.name === bowler.name);
@@ -409,7 +502,7 @@ function MatchInner({
         };
         ci.bowlers.push(bw);
       }
-      if (!o.isExtra) {
+      if (legal) {
         bw.balls += 1;
         bw._curOverBalls += 1;
       }
@@ -442,14 +535,45 @@ function MatchInner({
         if (o.isWicket) {
           bt.out = true;
           bt.dismissal = (o.wicketType ?? "Bowled") as DismissalKind;
-          if (bowler && bt.dismissal !== "Run Out") bt.bowler = bowler.name;
+          bt.bowler = bowler && bt.dismissal !== "Run Out" ? bowler.name : undefined;
+          bt.fielder = pickFielderName(bt.dismissal, fieldingSquad, bowler?.name);
+          bt.overBall = overBall;
+          bt.scoreAtDismissal = `${ci.runs + o.runs}/${ci.wickets + 1}`;
+          dismissalEvent = {
+            wicket: ci.wickets + 1,
+            batter: bt.name,
+            score: bt.scoreAtDismissal,
+            overBall,
+            dismissal: bt.dismissal,
+            bowler: bt.bowler,
+            fielder: bt.fielder,
+            isPlayer: bt.isPlayer,
+          };
+          ci.fallOfWickets.push(dismissalEvent);
         }
       }
     } else if (striker && o.isExtra && o.isWicket) {
       // run-out off an extra (rare) — still mark the batter
       const bt = ci.batters.find((b) => b.name === striker.name);
-      if (bt) { bt.out = true; bt.dismissal = "Run Out"; }
+      if (bt) {
+        bt.out = true;
+        bt.dismissal = "Run Out";
+        bt.fielder = pickFielderName("Run Out", fieldingSquad, bowler?.name);
+        bt.overBall = overBall;
+        bt.scoreAtDismissal = `${ci.runs + o.runs}/${ci.wickets + 1}`;
+        dismissalEvent = {
+          wicket: ci.wickets + 1,
+          batter: bt.name,
+          score: bt.scoreAtDismissal,
+          overBall,
+          dismissal: "Run Out",
+          fielder: bt.fielder,
+          isPlayer: bt.isPlayer,
+        };
+        ci.fallOfWickets.push(dismissalEvent);
+      }
     }
+    return dismissalEvent;
   }
 
   // -------- Mark a batter as having walked in (assigns batted order) --------
@@ -471,6 +595,8 @@ function MatchInner({
       // Deep-clone scorecard arrays so we can mutate
       ci.batters = ci.batters.map((b) => ({ ...b }));
       ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+      ci.extras = cloneExtras(ci.extras);
+      ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
       // Mark openers in
       const battingSq = ci.battingTeam === myTeam ? myBattingOrder : oppBattingOrder;
@@ -505,6 +631,7 @@ function MatchInner({
         const striker = liveBatters[0] ?? null;
         const bw = pickAiBowler(ci, bowlingPool);
         const bowler = bw ? { name: bw.name, isPlayer: false } : null;
+        const fieldingSq = ci.bowlingTeam === myTeam ? mySquad : oppSquad;
 
         let outcome: BallOutcome;
         if (isWicket) {
@@ -522,7 +649,7 @@ function MatchInner({
           };
         }
 
-        recordBallToScorecard(ci, outcome, striker ? { name: striker.name, isPlayer: false } : null, bowler);
+        recordBallToScorecard(ci, outcome, striker ? { name: striker.name, isPlayer: false } : null, bowler, fieldingSq);
 
         ci.balls += 1;
         ci.runs += runs;
@@ -586,9 +713,9 @@ function MatchInner({
       const ci = { ...next[currentInn], log: [o, ...next[currentInn].log].slice(0, 25) };
       ci.batters = ci.batters.map((b) => ({ ...b }));
       ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+      ci.extras = cloneExtras(ci.extras);
+      ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
-      if (!o.isExtra) ci.balls += 1;
-      ci.runs += o.runs;
       const onStrikeIsPlayer = ci.strikerIsPlayer;
 
       // Run-out chance on a 2 (rare) — applies to whoever ran
@@ -617,15 +744,19 @@ function MatchInner({
       // Identify striker name for scorecard
       const strikerName = onStrikeIsPlayer ? save.player.name : ci.partnerName;
       const strikerEntry = { name: strikerName, isPlayer: onStrikeIsPlayer };
+      const fieldingSq = ci.bowlingTeam === myTeam ? mySquad : oppSquad;
 
-      recordBallToScorecard(ci, outcomeForCard, strikerEntry, bowlerEntry);
+      recordBallToScorecard(ci, outcomeForCard, strikerEntry, bowlerEntry, fieldingSq);
+
+      ci.runs += outcomeForCard.runs;
+      if (isLegalBall(outcomeForCard)) ci.balls += 1;
 
       if (onStrikeIsPlayer && fromPlayer) {
-        if (!o.isExtra) {
+        if (!outcomeForCard.isExtra) {
           ci.playerBalls += 1;
-          ci.playerRuns += o.runs;
-          if (o.runs === 4) ci.playerFours += 1;
-          if (o.runs === 6) ci.playerSixes += 1;
+          ci.playerRuns += outcomeForCard.runs;
+          if (outcomeForCard.runs === 4) ci.playerFours += 1;
+          if (outcomeForCard.runs === 6) ci.playerSixes += 1;
         }
         if (o.isWicket || runOut) {
           ci.wickets += 1;
@@ -639,9 +770,9 @@ function MatchInner({
           }
         }
       } else if (!onStrikeIsPlayer && !fromPlayer) {
-        if (!o.isExtra) {
+        if (!outcomeForCard.isExtra) {
           ci.partnerBalls += 1;
-          ci.partnerRuns += o.runs;
+          ci.partnerRuns += outcomeForCard.runs;
         }
         if (o.isWicket || runOut) {
           ci.wickets += 1;
@@ -666,10 +797,10 @@ function MatchInner({
         }
       }
       // Strike rotation: odd runs swap; end of over swaps too
-      if (!o.isExtra && !o.isWicket && (o.runs === 1 || o.runs === 3)) {
+      if (!outcomeForCard.isExtra && !outcomeForCard.isWicket && (outcomeForCard.runs === 1 || outcomeForCard.runs === 3)) {
         ci.strikerIsPlayer = !ci.strikerIsPlayer;
       }
-      if (!o.isExtra && (ci.balls % 6 === 0)) {
+      if (isLegalBall(outcomeForCard) && (ci.balls % 6 === 0)) {
         ci.strikerIsPlayer = !ci.strikerIsPlayer;
       }
       next[currentInn] = ci;
@@ -716,6 +847,8 @@ function MatchInner({
         if (ci.balls >= oversPerInnings * 6 || ci.wickets >= 10) return all;
         ci.batters = ci.batters.map((b) => ({ ...b }));
         ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+        ci.extras = cloneExtras(ci.extras);
+        ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
         const r = Math.random();
         let runs = 0; let isWicket = false;
@@ -742,10 +875,12 @@ function MatchInner({
           commentary: runs === 0 ? `Dot.` : runs >= 4 ? `Tail-ender pumps it!` : `${runs} taken.`,
         };
 
-        recordBallToScorecard(ci, outcome, striker ? { name: striker.name, isPlayer: false } : null, { name: bw.name, isPlayer: false });
+        const fieldingSq = ci.bowlingTeam === myTeam ? mySquad : oppSquad;
+        recordBallToScorecard(ci, outcome, striker ? { name: striker.name, isPlayer: false } : null, { name: bw.name, isPlayer: false }, fieldingSq);
 
         ci.log = [outcome, ...ci.log].slice(0, 25);
-        ci.runs += outcome.runs; ci.balls += 1;
+        ci.runs += outcome.runs;
+        if (isLegalBall(outcome)) ci.balls += 1;
         if (outcome.isWicket) {
           ci.wickets += 1;
           // Bring next tail-ender in
@@ -789,6 +924,8 @@ function MatchInner({
       const ci = { ...next[currentInn], log: [outcome, ...next[currentInn].log].slice(0, 25) };
       ci.batters = ci.batters.map((b) => ({ ...b }));
       ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+      ci.extras = cloneExtras(ci.extras);
+      ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
       // Determine the AI striker (first not-out batter in batted order, or bring in opener if none yet)
       const battingSq = ci.battingTeam === myTeam ? myBattingOrder : oppBattingOrder;
@@ -815,16 +952,17 @@ function MatchInner({
         outcomeForCard = { ...outcome, wicketType: dis };
       }
 
+      const fieldingSq = ci.bowlingTeam === myTeam ? mySquad : oppSquad;
       recordBallToScorecard(ci, outcomeForCard,
         striker ? { name: striker.name, isPlayer: false } : null,
-        { name: save.player.name, isPlayer: true });
+        { name: save.player.name, isPlayer: true }, fieldingSq);
 
       ci.runs += outcome.runs;
-      if (!outcome.isExtra) {
+      if (isLegalBall(outcomeForCard)) {
         ci.balls += 1;
         ci.playerBallsBowled += 1;
       }
-      ci.playerRunsConceded += outcome.runs;
+      ci.playerRunsConceded += bowlerRunsCharged(outcomeForCard);
       if (outcome.isWicket) {
         ci.wickets += 1;
         ci.playerWicketsTaken += 1;
@@ -862,6 +1000,8 @@ function MatchInner({
         if (target !== null && ci.runs >= target) return all;
         ci.batters = ci.batters.map((b) => ({ ...b }));
         ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
+        ci.extras = cloneExtras(ci.extras);
+        ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
         const r = Math.random();
         let runs = 0; let isWicket = false;
@@ -892,12 +1032,14 @@ function MatchInner({
           commentary: runs === 0 ? `Dot.` : runs >= 4 ? `Conceded a boundary.` : `${runs} run${runs>1?"s":""} given.`,
         };
 
+        const fieldingSq = ci.bowlingTeam === myTeam ? mySquad : oppSquad;
         recordBallToScorecard(ci, outcome,
           striker ? { name: striker.name, isPlayer: false } : null,
-          { name: bw.name, isPlayer: false });
+          { name: bw.name, isPlayer: false }, fieldingSq);
 
         ci.log = [outcome, ...ci.log].slice(0, 25);
-        ci.runs += outcome.runs; ci.balls += 1;
+        ci.runs += outcome.runs;
+        if (isLegalBall(outcome)) ci.balls += 1;
         if (outcome.isWicket) {
           ci.wickets += 1;
           const nextSquadMember = battingSq.find((p) => {
@@ -1071,6 +1213,12 @@ function MatchInner({
         partnerBalls: i.partnerBalls,
         battingPosition: i.battingPosition,
         day,
+        declared: i.declared,
+        batters: i.batters,
+        bowlers: i.bowlers,
+        battedCount: i.battedCount,
+        extras: i.extras,
+        fallOfWickets: i.fallOfWickets,
       })),
       currentInnings: currentInn,
       target,
@@ -1090,6 +1238,13 @@ function MatchInner({
   // ---------- Render ----------
   return (
     <GameShell>
+      {dismissalDetail && (
+        <DismissalDetailModal
+          detail={dismissalDetail}
+          onClose={() => setDismissalDetail(null)}
+        />
+      )}
+
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
           <p className="text-display text-xs text-primary">{fixture.competition} · {fixture.format}{isTest ? ` · Day ${day}` : ""}</p>
@@ -1296,6 +1451,7 @@ function MatchInner({
                 battingInnings={innings.filter((i) => i.battingTeam === myTeam)}
                 bowlingInningsAgainstUs={innings.filter((i) => i.bowlingTeam === myTeam)}
                 fullSquadBatting={myBattingOrder}
+                onDismissalSelect={(detail) => setDismissalDetail({ ...detail, battingTeam: myTeam })}
               />
             )}
             {scorecardTab === 1 && (
@@ -1305,6 +1461,7 @@ function MatchInner({
                 battingInnings={innings.filter((i) => i.battingTeam === opp)}
                 bowlingInningsAgainstUs={innings.filter((i) => i.bowlingTeam === opp)}
                 fullSquadBatting={oppBattingOrder}
+                onDismissalSelect={(detail) => setDismissalDetail({ ...detail, battingTeam: opp })}
               />
             )}
           </div>
@@ -1567,16 +1724,50 @@ function ResultBlock({ myTeam, opp, innings, playerName }: {
   );
 }
 
+function DismissalDetailModal({ detail, onClose }: { detail: DismissalDetail; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 px-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-elegant">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-destructive">Wicket {detail.wicket}</p>
+            <h2 className="text-display text-xl text-foreground">{detail.batter} out</h2>
+          </div>
+          <button onClick={onClose} className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground">Close</button>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <DetailPill label="Team" value={detail.battingTeam} />
+          <DetailPill label="Over" value={detail.overBall} />
+          <DetailPill label="Score" value={detail.score} />
+          <DetailPill label="Dismissal" value={detail.dismissal} />
+          <DetailPill label="Bowler" value={detail.bowler ?? "—"} />
+          <DetailPill label="Fielder" value={detail.fielder ?? "—"} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border bg-background/30 p-2">
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-display text-sm text-foreground">{value}</p>
+    </div>
+  );
+}
+
 // ---------- FULL TEAM SCORECARD ----------
 
 function TeamScorecard({
-  teamName, playerName, battingInnings, bowlingInningsAgainstUs, fullSquadBatting,
+  teamName, playerName, battingInnings, bowlingInningsAgainstUs, fullSquadBatting, onDismissalSelect,
 }: {
   teamName: string;
   playerName: string;
   battingInnings: InningsState[]; // innings where THIS team batted
   bowlingInningsAgainstUs: InningsState[]; // innings where THIS team bowled
   fullSquadBatting: RosterPlayer[];
+  onDismissalSelect: (detail: FallOfWicket) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -1587,6 +1778,7 @@ function TeamScorecard({
           title={`${teamName} Batting${battingInnings.length > 1 ? ` — Innings ${idx + 1}` : ""}`}
           playerName={playerName}
           fullSquad={fullSquadBatting}
+          onDismissalSelect={onDismissalSelect}
         />
       ))}
       {bowlingInningsAgainstUs.map((inn, idx) => (
@@ -1606,20 +1798,21 @@ function dismissalText(b: BatterCard): string {
   switch (b.dismissal) {
     case "Bowled": return `b ${b.bowler ?? ""}`;
     case "LBW": return `lbw b ${b.bowler ?? ""}`;
-    case "Caught": return `c & b ${b.bowler ?? ""}`;
-    case "Stumped": return `st b ${b.bowler ?? ""}`;
-    case "Run Out": return `run out`;
+    case "Caught": return `c ${b.fielder ?? "fielder"} b ${b.bowler ?? ""}`;
+    case "Stumped": return `st ${b.fielder ?? "keeper"} b ${b.bowler ?? ""}`;
+    case "Run Out": return `run out ${b.fielder ? `(${b.fielder})` : ""}`;
     default: return "out";
   }
 }
 
 function BattingScorecardTable({
-  inn, title, playerName, fullSquad,
+  inn, title, playerName, fullSquad, onDismissalSelect,
 }: {
   inn: InningsState;
   title: string;
   playerName: string;
   fullSquad: RosterPlayer[];
+  onDismissalSelect: (detail: FallOfWicket) => void;
 }) {
   // Order: by battedOrder (1..n), then yet-to-bat by squad order
   const rows = [...inn.batters].sort((a, b) => {
@@ -1665,7 +1858,19 @@ function BattingScorecardTable({
                   <td className="py-1.5 pr-2 text-display">
                     {b.name}{b.name === playerName ? " (you)" : ""}
                   </td>
-                  <td className="py-1.5 pr-2 text-muted-foreground italic">{dismissalText(b)}</td>
+                  <td className="py-1.5 pr-2 text-muted-foreground italic">
+                    {b.out ? (
+                      <button
+                        onClick={() => {
+                          const fow = inn.fallOfWickets.find((f) => f.batter === b.name && f.overBall === b.overBall);
+                          if (fow) onDismissalSelect(fow);
+                        }}
+                        className="text-left italic text-primary underline-offset-2 hover:underline"
+                      >
+                        {dismissalText(b)}
+                      </button>
+                    ) : dismissalText(b)}
+                  </td>
                   <td className="py-1.5 pr-2 text-right text-foreground">{isYetToBat ? "—" : b.runs}</td>
                   <td className="py-1.5 pr-2 text-right text-muted-foreground">{isYetToBat ? "—" : b.balls}</td>
                   <td className="py-1.5 pr-2 text-right text-muted-foreground">{isYetToBat ? "—" : b.fours}</td>
@@ -1677,6 +1882,42 @@ function BattingScorecardTable({
           </tbody>
         </table>
       </div>
+      <ExtrasSummary extras={inn.extras} />
+      <FallOfWicketsList wickets={inn.fallOfWickets} onSelect={onDismissalSelect} />
+    </div>
+  );
+}
+
+function ExtrasSummary({ extras }: { extras: ExtrasBreakdown }) {
+  return (
+    <div className="mt-4 rounded-md border border-border bg-background/30 p-3 text-xs">
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Extras — {extrasTotal(extras)}</p>
+      <p className="mt-1 text-muted-foreground">
+        Wides {extras.wides} · No-balls {extras.noBalls} · Byes {extras.byes} · Leg-byes {extras.legByes} · Penalty {extras.penalty}
+      </p>
+    </div>
+  );
+}
+
+function FallOfWicketsList({ wickets, onSelect }: { wickets: FallOfWicket[]; onSelect: (detail: FallOfWicket) => void }) {
+  return (
+    <div className="mt-4 rounded-md border border-border bg-background/30 p-3 text-xs">
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Fall of wickets</p>
+      {wickets.length === 0 ? (
+        <p className="mt-1 text-muted-foreground">No wickets fell.</p>
+      ) : (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {wickets.map((w) => (
+            <button
+              key={`${w.wicket}-${w.batter}-${w.overBall}`}
+              onClick={() => onSelect(w)}
+              className={`rounded-md border px-2 py-1 text-left ${w.isPlayer ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-foreground"}`}
+            >
+              {w.wicket}-{w.score} ({w.batter}, {w.overBall})
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
