@@ -1724,16 +1724,50 @@ function ResultBlock({ myTeam, opp, innings, playerName }: {
   );
 }
 
+function DismissalDetailModal({ detail, onClose }: { detail: DismissalDetail; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 px-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-elegant">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-destructive">Wicket {detail.wicket}</p>
+            <h2 className="text-display text-xl text-foreground">{detail.batter} out</h2>
+          </div>
+          <button onClick={onClose} className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground">Close</button>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <DetailPill label="Team" value={detail.battingTeam} />
+          <DetailPill label="Over" value={detail.overBall} />
+          <DetailPill label="Score" value={detail.score} />
+          <DetailPill label="Dismissal" value={detail.dismissal} />
+          <DetailPill label="Bowler" value={detail.bowler ?? "—"} />
+          <DetailPill label="Fielder" value={detail.fielder ?? "—"} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border bg-background/30 p-2">
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-display text-sm text-foreground">{value}</p>
+    </div>
+  );
+}
+
 // ---------- FULL TEAM SCORECARD ----------
 
 function TeamScorecard({
-  teamName, playerName, battingInnings, bowlingInningsAgainstUs, fullSquadBatting,
+  teamName, playerName, battingInnings, bowlingInningsAgainstUs, fullSquadBatting, onDismissalSelect,
 }: {
   teamName: string;
   playerName: string;
   battingInnings: InningsState[]; // innings where THIS team batted
   bowlingInningsAgainstUs: InningsState[]; // innings where THIS team bowled
   fullSquadBatting: RosterPlayer[];
+  onDismissalSelect: (detail: FallOfWicket) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -1744,6 +1778,7 @@ function TeamScorecard({
           title={`${teamName} Batting${battingInnings.length > 1 ? ` — Innings ${idx + 1}` : ""}`}
           playerName={playerName}
           fullSquad={fullSquadBatting}
+          onDismissalSelect={onDismissalSelect}
         />
       ))}
       {bowlingInningsAgainstUs.map((inn, idx) => (
