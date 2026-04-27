@@ -388,7 +388,6 @@ function MatchInner({
           bowlers: anyI.bowlers ?? emptyBowlers(bowlingSq, save.player.name),
           battedCount: anyI.battedCount ?? 0,
           extras: anyI.extras ?? { ...EMPTY_EXTRAS },
-          fallOfWickets: anyI.fallOfWickets ?? [],
         } as InningsState;
       });
     }
@@ -431,15 +430,17 @@ function MatchInner({
   const oversBowled = inn ? Math.floor(inn.balls / 6) : 0;
   const ballThisOver = inn ? inn.balls % 6 : 0;
 
+  // Queue of dismissals to surface in the modal — pushed by recordBallToScorecard
+  const dismissalQueueRef = useRef<DismissalDetail[]>([]);
+
+  // Drain the queue whenever wickets count changes
   useEffect(() => {
     if (!inn || (phase !== "batting" && phase !== "bowling")) return;
-    const latest = inn.fallOfWickets[inn.fallOfWickets.length - 1];
-    if (!latest) return;
-    const key = `${currentInn}-${latest.wicket}-${latest.batter}-${latest.overBall}`;
-    if (shownDismissalKeys.current.has(key)) return;
-    shownDismissalKeys.current.add(key);
-    setDismissalDetail({ ...latest, battingTeam: inn.battingTeam });
-  }, [inn?.fallOfWickets.length, currentInn, phase, inn]);
+    if (dismissalQueueRef.current.length === 0) return;
+    const next = dismissalQueueRef.current.shift();
+    if (next) setDismissalDetail(next);
+  }, [inn?.wickets, currentInn, phase, inn]);
+
 
   // For bowling phase
   const [aiBatterRating, setAiBatterRating] = useState(() => 50 + Math.floor(Math.random() * 25));
