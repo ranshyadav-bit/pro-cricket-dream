@@ -599,7 +599,6 @@ function MatchInner({
       ci.batters = ci.batters.map((b) => ({ ...b }));
       ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
       ci.extras = cloneExtras(ci.extras);
-      ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
       // Mark openers in
       const battingSq = ci.battingTeam === myTeam ? myBattingOrder : oppBattingOrder;
@@ -717,7 +716,6 @@ function MatchInner({
       ci.batters = ci.batters.map((b) => ({ ...b }));
       ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
       ci.extras = cloneExtras(ci.extras);
-      ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
       const onStrikeIsPlayer = ci.strikerIsPlayer;
 
@@ -851,7 +849,6 @@ function MatchInner({
         ci.batters = ci.batters.map((b) => ({ ...b }));
         ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
         ci.extras = cloneExtras(ci.extras);
-        ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
         const r = Math.random();
         let runs = 0; let isWicket = false;
@@ -928,7 +925,6 @@ function MatchInner({
       ci.batters = ci.batters.map((b) => ({ ...b }));
       ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
       ci.extras = cloneExtras(ci.extras);
-      ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
       // Determine the AI striker (first not-out batter in batted order, or bring in opener if none yet)
       const battingSq = ci.battingTeam === myTeam ? myBattingOrder : oppBattingOrder;
@@ -1004,7 +1000,6 @@ function MatchInner({
         ci.batters = ci.batters.map((b) => ({ ...b }));
         ci.bowlers = ci.bowlers.map((b) => ({ ...b }));
         ci.extras = cloneExtras(ci.extras);
-        ci.fallOfWickets = cloneFallOfWickets(ci.fallOfWickets);
 
         const r = Math.random();
         let runs = 0; let isWicket = false;
