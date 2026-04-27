@@ -654,9 +654,8 @@ function MatchInner({
         recordBallToScorecard(ci, outcome, striker ? { name: striker.name, isPlayer: false } : null, bowler, fieldingSq);
 
         ci.balls += 1;
-        ci.runs += runs;
+        // ci.runs / ci.wickets are derived inside recordBallToScorecard from the scorecard
         if (isWicket) {
-          ci.wickets += 1;
           // Bring next batter in (unless this wicket is the one that brings the player in)
           if (ci.wickets < playerBatPos - 1 && battingSq[nextBatterIdx]) {
             markBatterIn(ci, battingSq[nextBatterIdx].name);
