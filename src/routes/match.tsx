@@ -748,7 +748,7 @@ function MatchInner({
 
       recordBallToScorecard(ci, outcomeForCard, strikerEntry, bowlerEntry, fieldingSq);
 
-      ci.runs += outcomeForCard.runs;
+      // ci.runs and ci.wickets are derived inside recordBallToScorecard
       if (isLegalBall(outcomeForCard)) ci.balls += 1;
 
       if (onStrikeIsPlayer && fromPlayer) {
@@ -759,7 +759,6 @@ function MatchInner({
           if (outcomeForCard.runs === 6) ci.playerSixes += 1;
         }
         if (o.isWicket || runOut) {
-          ci.wickets += 1;
           ci.playerOut = true;
           if (runOut) {
             const ro: BallOutcome = {
@@ -775,7 +774,6 @@ function MatchInner({
           ci.partnerRuns += outcomeForCard.runs;
         }
         if (o.isWicket || runOut) {
-          ci.wickets += 1;
           ci.partnerOut = true;
           // Bring next partner in if more wickets allowed and player still in
           if (ci.wickets < 10 && !ci.playerOut) {
