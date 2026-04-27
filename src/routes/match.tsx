@@ -951,14 +951,12 @@ function MatchInner({
         striker ? { name: striker.name, isPlayer: false } : null,
         { name: save.player.name, isPlayer: true }, fieldingSq);
 
-      ci.runs += outcome.runs;
       if (isLegalBall(outcomeForCard)) {
         ci.balls += 1;
         ci.playerBallsBowled += 1;
       }
       ci.playerRunsConceded += bowlerRunsCharged(outcomeForCard);
       if (outcome.isWicket) {
-        ci.wickets += 1;
         ci.playerWicketsTaken += 1;
         // Bring next batter in
         const nextSquadMember = battingSq.find((p) => {
