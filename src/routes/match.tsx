@@ -1216,7 +1216,6 @@ function MatchInner({
         bowlers: i.bowlers,
         battedCount: i.battedCount,
         extras: i.extras,
-        fallOfWickets: i.fallOfWickets,
       })),
       currentInnings: currentInn,
       target,
