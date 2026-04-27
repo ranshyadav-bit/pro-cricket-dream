@@ -470,17 +470,17 @@ function MatchInner({
   }
 
   // -------- Helper: record a ball into the scorecard --------
-  // mutates ci in place; returns nothing
+  // Mutates ci in place. After running, ci.runs and ci.wickets are recomputed
+  // from the per-batter scorecard + extras so the team total can never disagree.
   function recordBallToScorecard(
     ci: InningsState,
     o: BallOutcome,
     striker: { name: string; isPlayer: boolean } | null,
     bowler: { name: string; isPlayer: boolean } | null,
     fieldingSquad: RosterPlayer[],
-  ): FallOfWicket | null {
+  ): void {
     const legal = isLegalBall(o);
     const overBall = overBallAfterDelivery(ci.balls, o);
-    let dismissalEvent: FallOfWicket | null = null;
     addExtras(ci, o);
     // Update bowler stats (legal balls only)
     if (bowler) {
@@ -530,18 +530,19 @@ function MatchInner({
           bt.bowler = bowler && bt.dismissal !== "Run Out" ? bowler.name : undefined;
           bt.fielder = pickFielderName(bt.dismissal, fieldingSquad, bowler?.name);
           bt.overBall = overBall;
-          bt.scoreAtDismissal = `${ci.runs + o.runs}/${ci.wickets + 1}`;
-          dismissalEvent = {
-            wicket: ci.wickets + 1,
+          // score-at-dismissal will be recomputed below after we sync ci.runs
+          const wicketNum = ci.batters.filter((b) => b.out).length;
+          dismissalQueueRef.current.push({
+            wicket: wicketNum,
             batter: bt.name,
-            score: bt.scoreAtDismissal,
+            score: "", // filled in after recompute
             overBall,
             dismissal: bt.dismissal,
             bowler: bt.bowler,
             fielder: bt.fielder,
             isPlayer: bt.isPlayer,
-          };
-          ci.fallOfWickets.push(dismissalEvent);
+            battingTeam: ci.battingTeam,
+          });
         }
       }
     } else if (striker && o.isExtra && o.isWicket) {
@@ -552,20 +553,30 @@ function MatchInner({
         bt.dismissal = "Run Out";
         bt.fielder = pickFielderName("Run Out", fieldingSquad, bowler?.name);
         bt.overBall = overBall;
-        bt.scoreAtDismissal = `${ci.runs + o.runs}/${ci.wickets + 1}`;
-        dismissalEvent = {
-          wicket: ci.wickets + 1,
+        const wicketNum = ci.batters.filter((b) => b.out).length;
+        dismissalQueueRef.current.push({
+          wicket: wicketNum,
           batter: bt.name,
-          score: bt.scoreAtDismissal,
+          score: "",
           overBall,
           dismissal: "Run Out",
           fielder: bt.fielder,
           isPlayer: bt.isPlayer,
-        };
-        ci.fallOfWickets.push(dismissalEvent);
+          battingTeam: ci.battingTeam,
+        });
       }
     }
-    return dismissalEvent;
+    // ---- Single source of truth: derive team totals from scorecard ----
+    const battersRuns = ci.batters.reduce((s, b) => s + b.runs, 0);
+    ci.runs = battersRuns + extrasTotal(ci.extras);
+    ci.wickets = ci.batters.filter((b) => b.out).length;
+    // Patch any pending dismissal entries with the now-correct score string
+    for (const d of dismissalQueueRef.current) {
+      if (!d.score) d.score = `${ci.runs}/${ci.wickets}`;
+    }
+    // Mirror the latest dismissal score into the batter's card too
+    const latestOut = ci.batters.find((b) => b.out && b.overBall === overBall);
+    if (latestOut) latestOut.scoreAtDismissal = `${ci.runs}/${ci.wickets}`;
   }
 
   // -------- Mark a batter as having walked in (assigns batted order) --------
