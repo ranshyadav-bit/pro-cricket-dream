@@ -39,17 +39,6 @@ export interface SavedExtrasBreakdown {
   penalty: number;
 }
 
-export interface SavedFallOfWicket {
-  wicket: number;
-  batter: string;
-  score: string;
-  overBall: string;
-  dismissal: SavedDismissalKind;
-  bowler?: string;
-  fielder?: string;
-  isPlayer: boolean;
-}
-
 export interface InningsSnapshot {
   battingTeam: string;
   bowlingTeam: string;
@@ -79,7 +68,6 @@ export interface InningsSnapshot {
   bowlers?: SavedBowlerCard[];
   battedCount?: number;
   extras?: SavedExtrasBreakdown;
-  fallOfWickets?: SavedFallOfWicket[];
 }
 
 export interface MatchSnapshot {
