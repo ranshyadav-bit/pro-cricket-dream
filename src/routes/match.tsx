@@ -130,7 +130,6 @@ interface InningsState {
   bowlers: BowlerCard[]; // length 11; only used ones get balls > 0
   battedCount: number; // how many batters have come to crease
   extras: ExtrasBreakdown;
-  fallOfWickets: FallOfWicket[];
 }
 
 const DISMISSAL_TYPES: DismissalKind[] = ["Bowled", "LBW", "Caught", "Stumped", "Run Out"];
@@ -139,10 +138,6 @@ const EMPTY_EXTRAS: ExtrasBreakdown = { wides: 0, noBalls: 0, byes: 0, legByes: 
 
 function cloneExtras(extras?: ExtrasBreakdown): ExtrasBreakdown {
   return { ...EMPTY_EXTRAS, ...(extras ?? {}) };
-}
-
-function cloneFallOfWickets(fows?: FallOfWicket[]): FallOfWicket[] {
-  return (fows ?? []).map((f) => ({ ...f }));
 }
 
 function isLegalBall(o: BallOutcome): boolean {
