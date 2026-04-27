@@ -876,10 +876,8 @@ function MatchInner({
         recordBallToScorecard(ci, outcome, striker ? { name: striker.name, isPlayer: false } : null, { name: bw.name, isPlayer: false }, fieldingSq);
 
         ci.log = [outcome, ...ci.log].slice(0, 25);
-        ci.runs += outcome.runs;
         if (isLegalBall(outcome)) ci.balls += 1;
         if (outcome.isWicket) {
-          ci.wickets += 1;
           // Bring next tail-ender in
           const nextSquadMember = battingSq.find((p) => {
             const bc = ci.batters.find((b) => b.name === p.name);
