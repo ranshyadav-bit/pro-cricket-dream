@@ -1764,7 +1764,7 @@ function TeamScorecard({
   battingInnings: InningsState[]; // innings where THIS team batted
   bowlingInningsAgainstUs: InningsState[]; // innings where THIS team bowled
   fullSquadBatting: RosterPlayer[];
-  onDismissalSelect: (detail: FallOfWicket) => void;
+  onDismissalSelect: (detail: DismissalDetail) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -1809,7 +1809,7 @@ function BattingScorecardTable({
   title: string;
   playerName: string;
   fullSquad: RosterPlayer[];
-  onDismissalSelect: (detail: FallOfWicket) => void;
+  onDismissalSelect: (detail: DismissalDetail) => void;
 }) {
   // Order: by battedOrder (1..n), then yet-to-bat by squad order
   const rows = [...inn.batters].sort((a, b) => {
@@ -1859,8 +1859,17 @@ function BattingScorecardTable({
                     {b.out ? (
                       <button
                         onClick={() => {
-                          const fow = inn.fallOfWickets.find((f) => f.batter === b.name && f.overBall === b.overBall);
-                          if (fow) onDismissalSelect(fow);
+                          onDismissalSelect({
+                            wicket: b.battedOrder,
+                            batter: b.name,
+                            score: b.scoreAtDismissal ?? "",
+                            overBall: b.overBall ?? "",
+                            dismissal: (b.dismissal ?? "Bowled") as DismissalKind,
+                            bowler: b.bowler,
+                            fielder: b.fielder,
+                            isPlayer: b.isPlayer,
+                            battingTeam: inn.battingTeam,
+                          });
                         }}
                         className="text-left italic text-primary underline-offset-2 hover:underline"
                       >
@@ -1880,7 +1889,6 @@ function BattingScorecardTable({
         </table>
       </div>
       <ExtrasSummary extras={inn.extras} />
-      <FallOfWicketsList wickets={inn.fallOfWickets} onSelect={onDismissalSelect} />
     </div>
   );
 }
@@ -1892,29 +1900,6 @@ function ExtrasSummary({ extras }: { extras: ExtrasBreakdown }) {
       <p className="mt-1 text-muted-foreground">
         Wides {extras.wides} · No-balls {extras.noBalls} · Byes {extras.byes} · Leg-byes {extras.legByes} · Penalty {extras.penalty}
       </p>
-    </div>
-  );
-}
-
-function FallOfWicketsList({ wickets, onSelect }: { wickets: FallOfWicket[]; onSelect: (detail: FallOfWicket) => void }) {
-  return (
-    <div className="mt-4 rounded-md border border-border bg-background/30 p-3 text-xs">
-      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Fall of wickets</p>
-      {wickets.length === 0 ? (
-        <p className="mt-1 text-muted-foreground">No wickets fell.</p>
-      ) : (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {wickets.map((w) => (
-            <button
-              key={`${w.wicket}-${w.batter}-${w.overBall}`}
-              onClick={() => onSelect(w)}
-              className={`rounded-md border px-2 py-1 text-left ${w.isPlayer ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-foreground"}`}
-            >
-              {w.wicket}-{w.score} ({w.batter}, {w.overBall})
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
