@@ -230,7 +230,6 @@ function emptyInnings(
     extras: { ...EMPTY_EXTRAS },
   };
 }
-}
 
 // Where in the order does this role bat?
 function battingPositionForRole(role: Role): number {
