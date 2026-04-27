@@ -68,7 +68,6 @@ export interface InningsSnapshot {
   bowlers?: SavedBowlerCard[];
   battedCount?: number;
   extras?: SavedExtrasBreakdown;
-  fallOfWickets?: SavedFallOfWicket[];
 }
 
 export interface MatchSnapshot {
