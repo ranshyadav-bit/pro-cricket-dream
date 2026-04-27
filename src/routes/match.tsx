@@ -228,6 +228,12 @@ function emptyInnings(
     bowlers: emptyBowlers(bowlingSquad, playerName),
     battedCount: 0,
     extras: { ...EMPTY_EXTRAS },
+  };
+    playerWicketsTaken: 0, playerRunsConceded: 0, playerBallsBowled: 0,
+    batters: emptyBatters(battingSquad, playerName),
+    bowlers: emptyBowlers(bowlingSquad, playerName),
+    battedCount: 0,
+    extras: { ...EMPTY_EXTRAS },
     fallOfWickets: [],
   };
 }
