@@ -87,7 +87,7 @@ interface ExtrasBreakdown {
   penalty: number;
 }
 
-interface FallOfWicket {
+interface DismissalDetail {
   wicket: number;
   batter: string;
   score: string;
@@ -96,9 +96,6 @@ interface FallOfWicket {
   bowler?: string;
   fielder?: string;
   isPlayer: boolean;
-}
-
-interface DismissalDetail extends FallOfWicket {
   battingTeam: string;
 }
 
