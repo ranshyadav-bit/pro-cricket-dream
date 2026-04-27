@@ -1029,10 +1029,8 @@ function MatchInner({
           { name: bw.name, isPlayer: false }, fieldingSq);
 
         ci.log = [outcome, ...ci.log].slice(0, 25);
-        ci.runs += outcome.runs;
         if (isLegalBall(outcome)) ci.balls += 1;
         if (outcome.isWicket) {
-          ci.wickets += 1;
           const nextSquadMember = battingSq.find((p) => {
             const bc = ci.batters.find((b) => b.name === p.name);
             return bc && bc.battedOrder === 0;
