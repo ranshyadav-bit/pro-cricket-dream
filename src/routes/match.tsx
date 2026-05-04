@@ -24,6 +24,19 @@ import type {
   SaveGame,
   ShotType,
 } from "@/game/types";
+import {
+  recordBall as recordBallPure,
+  isLegalBall as isLegalBallPure,
+  extrasTotal as extrasTotalPure,
+  bowlerRunsCharged as bowlerRunsChargedPure,
+  cloneExtras as cloneExtrasPure,
+  EMPTY_EXTRAS as EMPTY_EXTRAS_PURE,
+  type BatterCard as PureBatterCard,
+  type BowlerCard as PureBowlerCard,
+  type ExtrasBreakdown as PureExtrasBreakdown,
+  type DismissalKind as PureDismissalKind,
+  type ScoreState,
+} from "@/game/scorecard";
 
 const SHOTS: ShotType[] = [
   "Leave", "Defend", "Block", "Push for 1",
