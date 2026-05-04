@@ -24,6 +24,19 @@ import type {
   SaveGame,
   ShotType,
 } from "@/game/types";
+import {
+  recordBall as recordBallPure,
+  isLegalBall as isLegalBallPure,
+  extrasTotal as extrasTotalPure,
+  bowlerRunsCharged as bowlerRunsChargedPure,
+  cloneExtras as cloneExtrasPure,
+  EMPTY_EXTRAS as EMPTY_EXTRAS_PURE,
+  type BatterCard as PureBatterCard,
+  type BowlerCard as PureBowlerCard,
+  type ExtrasBreakdown as PureExtrasBreakdown,
+  type DismissalKind as PureDismissalKind,
+  type ScoreState,
+} from "@/game/scorecard";
 
 const SHOTS: ShotType[] = [
   "Leave", "Defend", "Block", "Push for 1",
@@ -49,43 +62,11 @@ export const Route = createFileRoute("/match")({
 
 type Phase = "intro" | "toss" | "batting" | "bowling" | "innings-break" | "result";
 
-type DismissalKind = "Bowled" | "LBW" | "Caught" | "Stumped" | "Run Out";
+type DismissalKind = PureDismissalKind;
 
-interface BatterCard {
-  name: string;
-  isPlayer: boolean;
-  runs: number;
-  balls: number;
-  fours: number;
-  sixes: number;
-  out: boolean;
-  dismissal?: DismissalKind;
-  bowler?: string; // who got him out (bowler name)
-  fielder?: string; // for caught/run out
-  overBall?: string;
-  scoreAtDismissal?: string;
-  battedOrder: number; // 1..11 — order they walked in (0 = yet to bat)
-}
-
-interface BowlerCard {
-  name: string;
-  isPlayer: boolean;
-  balls: number;
-  runs: number;
-  wickets: number;
-  maidens: number;
-  // Internal: track runs in current over to compute maidens
-  _curOverRuns: number;
-  _curOverBalls: number;
-}
-
-interface ExtrasBreakdown {
-  wides: number;
-  noBalls: number;
-  byes: number;
-  legByes: number;
-  penalty: number;
-}
+type BatterCard = PureBatterCard;
+type BowlerCard = PureBowlerCard;
+type ExtrasBreakdown = PureExtrasBreakdown;
 
 interface DismissalDetail {
   wicket: number;
@@ -134,14 +115,14 @@ interface InningsState {
 
 const DISMISSAL_TYPES: DismissalKind[] = ["Bowled", "LBW", "Caught", "Stumped", "Run Out"];
 
-const EMPTY_EXTRAS: ExtrasBreakdown = { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 };
+const EMPTY_EXTRAS: ExtrasBreakdown = EMPTY_EXTRAS_PURE;
 
 function cloneExtras(extras?: ExtrasBreakdown): ExtrasBreakdown {
-  return { ...EMPTY_EXTRAS, ...(extras ?? {}) };
+  return cloneExtrasPure(extras);
 }
 
 function isLegalBall(o: BallOutcome): boolean {
-  return !o.isExtra || o.extraType === "Bye" || o.extraType === "Leg Bye";
+  return isLegalBallPure(o);
 }
 
 function overBallAfterDelivery(currentLegalBalls: number, o: BallOutcome): string {
@@ -156,23 +137,12 @@ function pickFielderName(kind: DismissalKind, fieldingSquad: RosterPlayer[], bow
   return options[Math.floor(Math.random() * Math.max(1, options.length))]?.name ?? bowlerName;
 }
 
-function addExtras(ci: InningsState, o: BallOutcome) {
-  if (!o.isExtra) return;
-  if (o.extraType === "Wide") ci.extras.wides += o.runs;
-  else if (o.extraType === "No Ball") ci.extras.noBalls += o.runs;
-  else if (o.extraType === "Bye") ci.extras.byes += o.runs;
-  else if (o.extraType === "Leg Bye") ci.extras.legByes += o.runs;
-  else ci.extras.penalty += o.runs;
-}
-
 function extrasTotal(extras: ExtrasBreakdown): number {
-  return extras.wides + extras.noBalls + extras.byes + extras.legByes + extras.penalty;
+  return extrasTotalPure(extras);
 }
 
 function bowlerRunsCharged(o: BallOutcome): number {
-  if (o.isExtra && (o.extraType === "Wide" || o.extraType === "No Ball")) return o.runs;
-  if (o.isExtra) return 0;
-  return o.runs;
+  return bowlerRunsChargedPure(o);
 }
 
 function pickDismissal(bowlerIsSpin: boolean): DismissalKind {
@@ -470,8 +440,9 @@ function MatchInner({
   }
 
   // -------- Helper: record a ball into the scorecard --------
-  // Mutates ci in place. After running, ci.runs and ci.wickets are recomputed
-  // from the per-batter scorecard + extras so the team total can never disagree.
+  // Delegates to the pure scorecard module for runs/wickets/extras/maidens
+  // accounting, then layers on route-specific metadata: fielder names,
+  // over.ball strings, score-at-dismissal, and the dismissal modal queue.
   function recordBallToScorecard(
     ci: InningsState,
     o: BallOutcome,
@@ -479,104 +450,50 @@ function MatchInner({
     bowler: { name: string; isPlayer: boolean } | null,
     fieldingSquad: RosterPlayer[],
   ): void {
-    const legal = isLegalBall(o);
     const overBall = overBallAfterDelivery(ci.balls, o);
-    addExtras(ci, o);
-    // Update bowler stats (legal balls only)
-    if (bowler) {
-      let bw = ci.bowlers.find((b) => b.name === bowler.name);
-      if (!bw) {
-        bw = {
-          name: bowler.name,
-          isPlayer: bowler.isPlayer,
-          balls: 0, runs: 0, wickets: 0, maidens: 0,
-          _curOverRuns: 0, _curOverBalls: 0,
-        };
-        ci.bowlers.push(bw);
-      }
-      if (legal) {
-        bw.balls += 1;
-        bw._curOverBalls += 1;
-      }
-      // wides/no-balls add to bowler runs in real cricket (extras), but byes/leg-byes don't
-      if (o.isExtra && (o.extraType === "Wide" || o.extraType === "No Ball")) {
-        bw.runs += o.runs;
-        bw._curOverRuns += o.runs;
-      } else if (!o.isExtra) {
-        bw.runs += o.runs;
-        bw._curOverRuns += o.runs;
-      }
-      if (o.isWicket && o.wicketType !== "Run Out") {
-        bw.wickets += 1;
-      }
-      // End of over → maiden check
-      if (bw._curOverBalls >= 6) {
-        if (bw._curOverRuns === 0) bw.maidens += 1;
-        bw._curOverRuns = 0;
-        bw._curOverBalls = 0;
-      }
-    }
-    // Update batter stats
-    if (striker && !o.isExtra) {
+    const wasOutBefore = striker
+      ? !!ci.batters.find((b) => b.name === striker.name)?.out
+      : false;
+
+    // Pure module owns runs/wickets/extras/bowler+batter increments
+    const state: ScoreState = {
+      runs: ci.runs,
+      wickets: ci.wickets,
+      balls: ci.balls,
+      batters: ci.batters,
+      bowlers: ci.bowlers,
+      extras: ci.extras,
+    };
+    recordBallPure(state, o, striker?.name ?? null, bowler?.name ?? null);
+    ci.runs = state.runs;
+    ci.wickets = state.wickets;
+    // NOTE: ci.balls is not advanced here — callers manage legal-ball counter
+    //       so existing over/innings-end logic stays untouched.
+
+    // Layer on route-specific metadata for any wicket that just fell.
+    if (striker && o.isWicket) {
       const bt = ci.batters.find((b) => b.name === striker.name);
-      if (bt) {
-        bt.balls += 1;
-        bt.runs += o.runs;
-        if (o.runs === 4) bt.fours += 1;
-        if (o.runs === 6) bt.sixes += 1;
-        if (o.isWicket) {
-          bt.out = true;
-          bt.dismissal = (o.wicketType ?? "Bowled") as DismissalKind;
-          bt.bowler = bowler && bt.dismissal !== "Run Out" ? bowler.name : undefined;
-          bt.fielder = pickFielderName(bt.dismissal, fieldingSquad, bowler?.name);
-          bt.overBall = overBall;
-          // score-at-dismissal will be recomputed below after we sync ci.runs
-          const wicketNum = ci.batters.filter((b) => b.out).length;
-          dismissalQueueRef.current.push({
-            wicket: wicketNum,
-            batter: bt.name,
-            score: "", // filled in after recompute
-            overBall,
-            dismissal: bt.dismissal,
-            bowler: bt.bowler,
-            fielder: bt.fielder,
-            isPlayer: bt.isPlayer,
-            battingTeam: ci.battingTeam,
-          });
-        }
-      }
-    } else if (striker && o.isExtra && o.isWicket) {
-      // run-out off an extra (rare) — still mark the batter
-      const bt = ci.batters.find((b) => b.name === striker.name);
-      if (bt) {
-        bt.out = true;
-        bt.dismissal = "Run Out";
-        bt.fielder = pickFielderName("Run Out", fieldingSquad, bowler?.name);
+      if (bt && bt.out && !wasOutBefore) {
         bt.overBall = overBall;
-        const wicketNum = ci.batters.filter((b) => b.out).length;
+        if (bt.dismissal && bt.dismissal !== "Run Out" && bowler) {
+          bt.bowler = bowler.name;
+        }
+        bt.fielder = pickFielderName(bt.dismissal ?? "Run Out", fieldingSquad, bowler?.name);
+        bt.scoreAtDismissal = `${ci.runs}/${ci.wickets}`;
+        const wicketNum = ci.wickets;
         dismissalQueueRef.current.push({
           wicket: wicketNum,
           batter: bt.name,
-          score: "",
+          score: bt.scoreAtDismissal,
           overBall,
-          dismissal: "Run Out",
+          dismissal: (bt.dismissal ?? "Run Out") as DismissalKind,
+          bowler: bt.bowler,
           fielder: bt.fielder,
           isPlayer: bt.isPlayer,
           battingTeam: ci.battingTeam,
         });
       }
     }
-    // ---- Single source of truth: derive team totals from scorecard ----
-    const battersRuns = ci.batters.reduce((s, b) => s + b.runs, 0);
-    ci.runs = battersRuns + extrasTotal(ci.extras);
-    ci.wickets = ci.batters.filter((b) => b.out).length;
-    // Patch any pending dismissal entries with the now-correct score string
-    for (const d of dismissalQueueRef.current) {
-      if (!d.score) d.score = `${ci.runs}/${ci.wickets}`;
-    }
-    // Mirror the latest dismissal score into the batter's card too
-    const latestOut = ci.batters.find((b) => b.out && b.overBall === overBall);
-    if (latestOut) latestOut.scoreAtDismissal = `${ci.runs}/${ci.wickets}`;
   }
 
   // -------- Mark a batter as having walked in (assigns batted order) --------
