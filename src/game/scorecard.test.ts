@@ -9,17 +9,18 @@ import {
 import type { BallOutcome } from "./types";
 
 // ---------- Ball outcome factories ----------
-const dot = (): BallOutcome => ({ runs: 0, isWicket: false, isBoundary: false, isExtra: false });
-const single = (): BallOutcome => ({ runs: 1, isWicket: false, isBoundary: false, isExtra: false });
-const four = (): BallOutcome => ({ runs: 4, isWicket: false, isBoundary: true, isExtra: false });
-const six = (): BallOutcome => ({ runs: 6, isWicket: false, isBoundary: true, isExtra: false });
-const wide = (runs = 1): BallOutcome => ({ runs, isWicket: false, isBoundary: false, isExtra: true, extraType: "Wide" });
-const noBall = (runs = 1): BallOutcome => ({ runs, isWicket: false, isBoundary: false, isExtra: true, extraType: "No Ball" });
-const bye = (runs = 1): BallOutcome => ({ runs, isWicket: false, isBoundary: false, isExtra: true, extraType: "Bye" });
-const legBye = (runs = 1): BallOutcome => ({ runs, isWicket: false, isBoundary: false, isExtra: true, extraType: "Leg Bye" });
-const bowled = (): BallOutcome => ({ runs: 0, isWicket: true, wicketType: "Bowled", isBoundary: false, isExtra: false });
-const runOut = (runsCompleted = 0): BallOutcome => ({ runs: runsCompleted, isWicket: true, wicketType: "Run Out", isBoundary: false, isExtra: false });
-const runOutOnWide = (runs = 1): BallOutcome => ({ runs, isWicket: true, wicketType: "Run Out", isBoundary: false, isExtra: true, extraType: "Wide" });
+const C = ""; // commentary placeholder
+const dot = (): BallOutcome => ({ runs: 0, isWicket: false, isBoundary: false, isExtra: false, commentary: C });
+const single = (): BallOutcome => ({ runs: 1, isWicket: false, isBoundary: false, isExtra: false, commentary: C });
+const four = (): BallOutcome => ({ runs: 4, isWicket: false, isBoundary: true, isExtra: false, commentary: C });
+const six = (): BallOutcome => ({ runs: 6, isWicket: false, isBoundary: true, isExtra: false, commentary: C });
+const wide = (runs = 1): BallOutcome => ({ runs, isWicket: false, isBoundary: false, isExtra: true, extraType: "Wide", commentary: C });
+const noBall = (runs = 1): BallOutcome => ({ runs, isWicket: false, isBoundary: false, isExtra: true, extraType: "No Ball", commentary: C });
+const bye = (runs = 1): BallOutcome => ({ runs, isWicket: false, isBoundary: false, isExtra: true, extraType: "Bye", commentary: C });
+const legBye = (runs = 1): BallOutcome => ({ runs, isWicket: false, isBoundary: false, isExtra: true, extraType: "Leg Bye", commentary: C });
+const bowled = (): BallOutcome => ({ runs: 0, isWicket: true, wicketType: "Bowled", isBoundary: false, isExtra: false, commentary: C });
+const runOut = (runsCompleted = 0): BallOutcome => ({ runs: runsCompleted, isWicket: true, wicketType: "Run Out", isBoundary: false, isExtra: false, commentary: C });
+const runOutOnWide = (runs = 1): BallOutcome => ({ runs, isWicket: true, wicketType: "Run Out", isBoundary: false, isExtra: true, extraType: "Wide", commentary: C });
 
 // Invariant: the team total must always equal the sum of every batter's runs
 // plus the extras breakdown. The wickets total must equal batters marked out.
