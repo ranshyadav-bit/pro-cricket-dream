@@ -62,43 +62,11 @@ export const Route = createFileRoute("/match")({
 
 type Phase = "intro" | "toss" | "batting" | "bowling" | "innings-break" | "result";
 
-type DismissalKind = "Bowled" | "LBW" | "Caught" | "Stumped" | "Run Out";
+type DismissalKind = PureDismissalKind;
 
-interface BatterCard {
-  name: string;
-  isPlayer: boolean;
-  runs: number;
-  balls: number;
-  fours: number;
-  sixes: number;
-  out: boolean;
-  dismissal?: DismissalKind;
-  bowler?: string; // who got him out (bowler name)
-  fielder?: string; // for caught/run out
-  overBall?: string;
-  scoreAtDismissal?: string;
-  battedOrder: number; // 1..11 — order they walked in (0 = yet to bat)
-}
-
-interface BowlerCard {
-  name: string;
-  isPlayer: boolean;
-  balls: number;
-  runs: number;
-  wickets: number;
-  maidens: number;
-  // Internal: track runs in current over to compute maidens
-  _curOverRuns: number;
-  _curOverBalls: number;
-}
-
-interface ExtrasBreakdown {
-  wides: number;
-  noBalls: number;
-  byes: number;
-  legByes: number;
-  penalty: number;
-}
+type BatterCard = PureBatterCard;
+type BowlerCard = PureBowlerCard;
+type ExtrasBreakdown = PureExtrasBreakdown;
 
 interface DismissalDetail {
   wicket: number;
