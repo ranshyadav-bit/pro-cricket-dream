@@ -115,14 +115,14 @@ interface InningsState {
 
 const DISMISSAL_TYPES: DismissalKind[] = ["Bowled", "LBW", "Caught", "Stumped", "Run Out"];
 
-const EMPTY_EXTRAS: ExtrasBreakdown = { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 };
+const EMPTY_EXTRAS: ExtrasBreakdown = EMPTY_EXTRAS_PURE;
 
 function cloneExtras(extras?: ExtrasBreakdown): ExtrasBreakdown {
-  return { ...EMPTY_EXTRAS, ...(extras ?? {}) };
+  return cloneExtrasPure(extras);
 }
 
 function isLegalBall(o: BallOutcome): boolean {
-  return !o.isExtra || o.extraType === "Bye" || o.extraType === "Leg Bye";
+  return isLegalBallPure(o);
 }
 
 function overBallAfterDelivery(currentLegalBalls: number, o: BallOutcome): string {
@@ -137,23 +137,12 @@ function pickFielderName(kind: DismissalKind, fieldingSquad: RosterPlayer[], bow
   return options[Math.floor(Math.random() * Math.max(1, options.length))]?.name ?? bowlerName;
 }
 
-function addExtras(ci: InningsState, o: BallOutcome) {
-  if (!o.isExtra) return;
-  if (o.extraType === "Wide") ci.extras.wides += o.runs;
-  else if (o.extraType === "No Ball") ci.extras.noBalls += o.runs;
-  else if (o.extraType === "Bye") ci.extras.byes += o.runs;
-  else if (o.extraType === "Leg Bye") ci.extras.legByes += o.runs;
-  else ci.extras.penalty += o.runs;
-}
-
 function extrasTotal(extras: ExtrasBreakdown): number {
-  return extras.wides + extras.noBalls + extras.byes + extras.legByes + extras.penalty;
+  return extrasTotalPure(extras);
 }
 
 function bowlerRunsCharged(o: BallOutcome): number {
-  if (o.isExtra && (o.extraType === "Wide" || o.extraType === "No Ball")) return o.runs;
-  if (o.isExtra) return 0;
-  return o.runs;
+  return bowlerRunsChargedPure(o);
 }
 
 function pickDismissal(bowlerIsSpin: boolean): DismissalKind {
