@@ -505,6 +505,12 @@ function MatchInner({
     }
   }
 
+  function liveBattersInOrder(ci: InningsState): BatterCard[] {
+    return ci.batters
+      .filter((b) => b.battedOrder > 0 && !b.out)
+      .sort((a, b) => a.battedOrder - b.battedOrder);
+  }
+
   // Sim balls (with partner script) until the player walks to the crease
   // FIX: Accept explicit innings index so we never write to a stale currentInn.
   function simUntilPlayerComes(targetInnIdx: number) {
@@ -532,10 +538,12 @@ function MatchInner({
         return next;
       }
 
-      // Sim wickets until enough have fallen so player at position playerBatPos is next in
+      // Sim wickets until the player's actual batting slot is due. A #5 batter
+      // walks in after 3 wickets, not 4; never mark the player before this point.
+      const wicketsBeforePlayer = Math.max(0, playerBatPos - 2);
       let safety = 1500;
       let nextBatterIdx = 2; // openers are 0,1 → next in is index 2
-      while (ci.wickets < playerBatPos - 1 && safety-- > 0) {
+      while (ci.wickets < wicketsBeforePlayer && safety-- > 0) {
         const r = Math.random();
         let runs = 0; let isWicket = false;
         if (r < 0.06) isWicket = true;
@@ -546,7 +554,7 @@ function MatchInner({
         else runs = 6;
 
         // Determine current striker — whichever opener/incoming batter is at top-of-order and not out
-        const liveBatters = ci.batters.filter((b) => b.battedOrder > 0 && !b.out);
+        const liveBatters = liveBattersInOrder(ci);
         const striker = liveBatters[0] ?? null;
         const bw = pickAiBowler(ci, bowlingPool);
         const bowler = bw ? { name: bw.name, isPlayer: false } : null;
@@ -574,7 +582,7 @@ function MatchInner({
         // ci.runs / ci.wickets are derived inside recordBallToScorecard from the scorecard
         if (isWicket) {
           // Bring next batter in (unless this wicket is the one that brings the player in)
-          if (ci.wickets < playerBatPos - 1 && battingSq[nextBatterIdx]) {
+          if (ci.wickets < wicketsBeforePlayer && battingSq[nextBatterIdx]) {
             markBatterIn(ci, battingSq[nextBatterIdx].name);
             nextBatterIdx += 1;
           }
@@ -582,10 +590,10 @@ function MatchInner({
       }
 
       // Now player walks in
-      ci.battingPosition = ci.wickets + 1;
+      ci.battingPosition = playerBatPos;
       markBatterIn(ci, save.player.name);
       // Partner is the OTHER batter still at the crease (the opener / earlier batter who wasn't out)
-      const stillIn = ci.batters.find((b) => b.battedOrder > 0 && !b.out && b.name !== save.player.name);
+      const stillIn = liveBattersInOrder(ci).find((b) => b.name !== save.player.name);
       ci.partnerName = stillIn?.name ?? partnerForPosition(ci.wickets + 2);
       ci.partnerRuns = stillIn?.runs ?? 0;
       ci.partnerBalls = stillIn?.balls ?? 0;
