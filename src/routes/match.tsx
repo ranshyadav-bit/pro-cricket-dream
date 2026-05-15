@@ -783,7 +783,7 @@ function MatchInner({
 
         const battingSq = ci.battingTeam === myTeam ? myBattingOrder : oppBattingOrder;
         // Find first not-out batter in batted order
-        const liveBatters = ci.batters.filter((b) => b.battedOrder > 0 && !b.out);
+        const liveBatters = liveBattersInOrder(ci);
         const striker = liveBatters[0] ?? null;
         const bowlingPool = ci.bowlingTeam === myTeam ? myBowlersPool : oppBowlersPool;
         const bw = pickAiBowler(ci, bowlingPool);
@@ -853,14 +853,14 @@ function MatchInner({
         if (battingSq[0]) markBatterIn(ci, battingSq[0].name);
         if (battingSq[1]) markBatterIn(ci, battingSq[1].name);
       }
-      let liveBatters = ci.batters.filter((b) => b.battedOrder > 0 && !b.out);
+      let liveBatters = liveBattersInOrder(ci);
       if (liveBatters.length < 2) {
         const next2 = battingSq.find((p) => {
           const bc = ci.batters.find((b) => b.name === p.name);
           return bc && bc.battedOrder === 0;
         });
         if (next2) markBatterIn(ci, next2.name);
-        liveBatters = ci.batters.filter((b) => b.battedOrder > 0 && !b.out);
+        liveBatters = liveBattersInOrder(ci);
       }
       const striker = liveBatters[0] ?? null;
 
