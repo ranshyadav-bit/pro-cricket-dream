@@ -933,7 +933,7 @@ function MatchInner({
           if (battingSq[0]) markBatterIn(ci, battingSq[0].name);
           if (battingSq[1]) markBatterIn(ci, battingSq[1].name);
         }
-        const liveBatters = ci.batters.filter((b) => b.battedOrder > 0 && !b.out);
+        const liveBatters = liveBattersInOrder(ci);
         const striker = liveBatters[0] ?? null;
         // AI bowling partner — pick from our pool excluding the player
         const partnerPool = myBowlersPool.filter((p) => p.name !== save.player.name);
