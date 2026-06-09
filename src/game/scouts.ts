@@ -80,7 +80,7 @@ export function generateScoutOffer(save: SaveGame, grade: ScoutGrade): ContractO
   const signedLeagues = new Set(slots.franchises.map((f) => f.league));
   const offers: ContractOffer[] = [];
 
-  if (!hasNationSlot && rating >= 60) {
+  if (!hasNationASlot && rating >= 60) {
     const value = scaledNationalValue(rating, factor * 0.8);
     offers.push({
       id: makeId(),
