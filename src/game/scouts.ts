@@ -74,9 +74,10 @@ export function generateScoutOffer(save: SaveGame, grade: ScoutGrade): ContractO
   const rating = overallRating(save.player);
   const player = save.player;
   const factor = grade === "A" ? 1.6 : grade === "B" ? 1.2 : grade === "C" ? 0.9 : 0.7;
-  const contractSlots = save.contractSlots ?? { franchise: null, nation: null };
-  const hasNationSlot = !!contractSlots.nation;
-  const hasFranchiseSlot = !!contractSlots.franchise;
+  const slots = normalizeSlots(save.contractSlots);
+  const hasNationSlot = !!slots.nation;
+  const hasNationASlot = !!slots.nationA;
+  const signedLeagues = new Set(slots.franchises.map((f) => f.league));
   const offers: ContractOffer[] = [];
 
   if (!hasNationSlot && rating >= 60) {
