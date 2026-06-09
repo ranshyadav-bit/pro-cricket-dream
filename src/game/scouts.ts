@@ -1,10 +1,10 @@
 // Scout system — after a strong individual match, an international or league scout
-// may issue an inbox offer. 20% base, scaled by performance grade.
+// may issue an inbox offer. Probability is performance-driven (see scoutChance).
 
 import type { ContractOffer } from "./contracts";
 import { LEAGUE_BY_ID } from "./rosters";
 import { overallRating } from "./rating";
-import type { InboxMessage, Player, SaveGame } from "./types";
+import { normalizeSlots, type InboxMessage, type Player, type SaveGame } from "./types";
 
 export type ScoutGrade = "A" | "B" | "C" | "D";
 
