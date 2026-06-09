@@ -8,7 +8,33 @@ import { normalizeSlots, type InboxMessage, type Player, type SaveGame } from ".
 
 export type ScoutGrade = "A" | "B" | "C" | "D";
 
-const SCOUT_APPEARANCE_RATE = 0.2;
+// Performance-driven scout appearance chance.
+// Batting: duck=0, ≤10=5%, 50=25%, 100=55%, 200+=100% (linear between checkpoints).
+// Bowling: wicketless=0, 1w=5%, 2w=15%, 3w=35%, 4w=60%, 5w+=100%.
+// The higher of the two chances wins.
+export function scoutChance(perf: { runs: number; balls: number; wickets: number; runsConceded: number; ballsBowled: number; out: boolean }): number {
+  let batP = 0;
+  const batted = perf.balls > 0 || perf.out || perf.runs > 0;
+  if (batted) {
+    const r = perf.runs;
+    if (r >= 200) batP = 1;
+    else if (r >= 100) batP = 0.55 + ((r - 100) / 100) * 0.45;
+    else if (r >= 50) batP = 0.25 + ((r - 50) / 50) * 0.30;
+    else if (r > 10) batP = 0.05 + ((r - 10) / 40) * 0.20;
+    else if (r > 0) batP = 0.05 * (r / 10);
+  }
+  let bowlP = 0;
+  if (perf.ballsBowled > 0) {
+    if (perf.wickets >= 5) bowlP = 1;
+    else if (perf.wickets === 4) bowlP = 0.60;
+    else if (perf.wickets === 3) bowlP = 0.35;
+    else if (perf.wickets === 2) bowlP = 0.15;
+    else if (perf.wickets === 1) bowlP = 0.05;
+    else bowlP = 0;
+  }
+  return Math.max(batP, bowlP);
+}
+
 
 export function gradeMatch(perf: { runs: number; balls: number; wickets: number; runsConceded: number; ballsBowled: number; out: boolean }): ScoutGrade {
   let score = 0;
