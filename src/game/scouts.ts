@@ -258,16 +258,26 @@ export function maybeCaptainPromotion(save: SaveGame): InboxMessage | null {
   };
 }
 
-// Helpers used by inbox UI to determine if an offer is allowed under "1 franchise + 1 nation" rule
-export function offerSlotConflict(save: SaveGame, offer: { league?: "IPL" | "BBL" | "PSL" | "County"; tier: Player["tier"] }): string | null {
-  const cs = save.contractSlots ?? { franchise: null, nation: null };
-  const isFranchise = !!offer.league && offer.league !== "County";
-  const isNation = offer.tier === "International" || offer.tier === "National A";
-  if (isFranchise && cs.franchise) {
-    return `You're already contracted to ${cs.franchise.team} (${cs.franchise.league}). Decline or wait for it to expire.`;
+// Multi-slot rules: one contract per franchise league, one national team, one National A.
+// You CAN hold an IPL + a BBL + a PSL + a County + a national + a National A side-by-side.
+export function offerSlotConflict(save: SaveGame, offer: { league?: "IPL" | "BBL" | "PSL" | "County"; tier: Player["tier"]; fromTeam?: string }): string | null {
+  const slots = normalizeSlots(save.contractSlots);
+  const isFranchise = !!offer.league;
+  const isNationalA = offer.tier === "National A";
+  const isInternational = offer.tier === "International";
+  if (isFranchise && offer.league) {
+    const existing = slots.franchises.find((f) => f.league === offer.league);
+    if (existing) return `You're already contracted to ${existing.team} in the ${offer.league}. Decline or wait for it to expire.`;
   }
-  if (isNation && cs.nation) {
-    return `You're already on a national contract with ${cs.nation.team}.`;
+  if (isInternational && slots.nation) {
+    return `You're already on a national contract with ${slots.nation.team}.`;
+  }
+  if (isNationalA && slots.nationA) {
+    return `You're already on a National A contract with ${slots.nationA.team}.`;
+  }
+  return null;
+}
+
   }
   return null;
 }
