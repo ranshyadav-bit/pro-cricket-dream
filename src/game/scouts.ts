@@ -136,9 +136,10 @@ export function generateScoutOffer(save: SaveGame, grade: ScoutGrade): ContractO
     });
   }
 
-  if (!hasFranchiseSlot && rating >= 70) {
-    const leagues: Array<"IPL" | "BBL" | "PSL"> = ["IPL", "BBL", "PSL"];
-    for (const league of leagues) {
+  if (rating >= 70) {
+    const allLeagues: Array<"IPL" | "BBL" | "PSL"> = ["IPL", "BBL", "PSL"];
+    const availableLeagues = allLeagues.filter((l) => !signedLeagues.has(l));
+    for (const league of availableLeagues) {
       const teams = LEAGUE_BY_ID[league];
       const team = randomFromArr(teams);
       let base: number;
