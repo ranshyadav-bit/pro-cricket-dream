@@ -212,7 +212,9 @@ export function maybeScoutOffer(
   const grade = gradeMatch(perf);
   const offer = generateScoutOffer(save, grade);
   if (!offer) return null;
-  if (Math.random() > SCOUT_APPEARANCE_RATE) return null;
+  const chance = scoutChance(perf);
+  if (chance <= 0) return null;
+  if (Math.random() > chance) return null;
   return buildScoutInboxMessage(save.week, save.year, offer);
 }
 
