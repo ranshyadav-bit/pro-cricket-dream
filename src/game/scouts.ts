@@ -277,7 +277,3 @@ export function offerSlotConflict(save: SaveGame, offer: { league?: "IPL" | "BBL
   }
   return null;
 }
-
-  }
-  return null;
-}
