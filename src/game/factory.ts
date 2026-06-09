@@ -1,5 +1,6 @@
 import type {
   CareerStats,
+  ContractSlots,
   Fixture,
   InboxMessage,
   Nation,
@@ -8,9 +9,11 @@ import type {
   SaveGame,
   Skills,
 } from "./types";
+import { normalizeSlots } from "./types";
 import { createLeaguesState } from "./leagues";
 import { newTournamentsForYear } from "./tournaments";
 import { findLeagueForTeam, pickClubOpponent, pickInternationalOpponent, pickLeagueOpponent, pickNationalAOpponent } from "./opponents";
+import type { LeagueId } from "./rosters";
 
 const NATION_CLUBS: Record<Nation, string[]> = {
   Australia: ["Sydney Strikers CC", "Melbourne Suburban CC", "Perth Coastal CC"],
@@ -84,83 +87,97 @@ function pickInternationalFormat(): "T20" | "ODI" | "Test" {
   return "Test";
 }
 
-export function generateFixtures(year: number, tier: Player["tier"], player?: Player): Fixture[] {
+export function generateFixtures(year: number, tier: Player["tier"], player?: Player, slots?: ContractSlots | null): Fixture[] {
   const list: Fixture[] = [];
   const playerTeam = player?.team ?? "";
   const playerLeague = playerTeam ? findLeagueForTeam(playerTeam) : null;
-  const isNationalTeam = playerTeam.includes("National Team");
-  const isNationalA = playerTeam.endsWith(" A") || tier === "National A";
+  const norm = normalizeSlots(slots);
 
-  // 52-week schedule. Goal: ~3 league games every 10 weeks + many internationals at top tiers.
-  // Approach: walk every week, decide if we have a fixture and what kind.
-  for (let w = 2; w <= 51; w++) {
-    let competition: string;
-    let opponent: string;
-    let format: Fixture["format"];
+  // Build commitment sources from active contracts. Each source produces one fixture
+  // when chosen for a week. We weave them so the player can play IPL one week, an
+  // India A tour the next, an ODI bilateral the next, etc.
+  type Source = {
+    label: "FRA" | "NAT" | "NA" | "CLU";
+    pickFixture: () => { competition: string; opponent: string; format: Fixture["format"] };
+  };
+  const sources: Source[] = [];
 
-    if (tier === "Club") {
-      // Club tier — club v club only, every 2 weeks
-      if (w % 2 !== 0) continue;
-      competition = "Club Premier League";
-      opponent = pickClubOpponent();
-      format = "Club";
-    } else if (tier === "Domestic" || tier === "National A") {
-      // Domestic — local club/state opponents only (never national teams)
-      if (w % 2 !== 0 && Math.random() < 0.5) continue;
-      if (isNationalA) {
-        competition = `${player?.nation ?? "National"} A Tour`;
-        opponent = player ? pickNationalAOpponent(player) : "Touring A";
-        format = Math.random() < 0.55 ? "ODI" : "T20";
-      } else {
-        const r = Math.random();
-        if (r < 0.4) { competition = "T20 Blast"; format = "T20"; }
-        else if (r < 0.75) { competition = "State Shield"; format = "Club"; }
-        else { competition = "County Championship"; format = "Test"; }
-        opponent = pickClubOpponent();
-      }
-    } else if (tier === "International") {
-      // International — denser schedule.
-      // 10-week block: 1-3 league (T20 league v league), 4-7 international, 8-9 rest, 10 international.
-      const blockWk = ((w - 1) % 10) + 1;
-      if (blockWk <= 3 && playerLeague && !isNationalTeam) {
-        // League block — STRICTLY league v league (always 20 overs)
-        competition = playerLeague;
-        opponent = pickLeagueOpponent(playerTeam, playerLeague);
-        format = "T20";
-      } else if (blockWk === 8 || blockWk === 9) {
-        continue; // rest week
-      } else {
-        // International bilateral — country v country, T20/ODI/Test only
-        if (player) {
-          competition = `${player.nation} Tour`;
-          opponent = pickInternationalOpponent(player);
-        } else {
-          competition = "International Tour";
-          opponent = "Touring XI";
+  for (const f of norm.franchises) {
+    const lg = f.league as LeagueId;
+    sources.push({
+      label: "FRA",
+      pickFixture: () => ({
+        competition: f.league,
+        opponent: pickLeagueOpponent(f.team, lg),
+        format: f.league === "County" ? (Math.random() < 0.5 ? "Test" : "T20") : "T20",
+      }),
+    });
+  }
+  if (norm.nation && player) {
+    sources.push({
+      label: "NAT",
+      pickFixture: () => ({
+        competition: `${player.nation} Tour`,
+        opponent: pickInternationalOpponent(player),
+        format: pickInternationalFormat(),
+      }),
+    });
+  }
+  if (norm.nationA && player) {
+    sources.push({
+      label: "NA",
+      pickFixture: () => ({
+        competition: `${player.nation} A Tour`,
+        opponent: pickNationalAOpponent(player),
+        format: Math.random() < 0.55 ? "ODI" : "T20",
+      }),
+    });
+  }
+  // Legacy fallback when the player has no signed contracts at all:
+  // derive a single source from the tier/team (original behaviour).
+  if (sources.length === 0) {
+    sources.push({
+      label: "CLU",
+      pickFixture: () => {
+        if (tier === "Club") {
+          return { competition: "Club Premier League", opponent: pickClubOpponent(), format: "Club" };
         }
-        format = pickInternationalFormat();
-      }
-    } else {
-      // Franchise T20 tier — league v league only (T20)
-      const blockWk = ((w - 1) % 10) + 1;
-      if (blockWk === 8 || blockWk === 9) continue;
-      if (playerLeague) {
-        competition = playerLeague;
-        opponent = pickLeagueOpponent(playerTeam, playerLeague);
-      } else {
-        competition = "Franchise T20";
-        opponent = "Visiting XI";
-      }
-      format = "T20";
-    }
+        if (tier === "Domestic" || tier === "National A") {
+          const r = Math.random();
+          if (r < 0.4) return { competition: "T20 Blast", opponent: pickClubOpponent(), format: "T20" };
+          if (r < 0.75) return { competition: "State Shield", opponent: pickClubOpponent(), format: "Club" };
+          return { competition: "County Championship", opponent: pickClubOpponent(), format: "Test" };
+        }
+        if (tier === "International" && player) {
+          return { competition: `${player.nation} Tour`, opponent: pickInternationalOpponent(player), format: pickInternationalFormat() };
+        }
+        if (tier === "Franchise T20" && playerLeague) {
+          return { competition: playerLeague, opponent: pickLeagueOpponent(playerTeam, playerLeague), format: "T20" };
+        }
+        return { competition: "Friendly", opponent: pickClubOpponent(), format: "T20" };
+      },
+    });
+  }
 
+  // 52-week schedule. Walk every week, cycle through sources, leave rest weeks.
+  let cursor = 0;
+  for (let w = 2; w <= 51; w++) {
+    const blockWk = ((w - 1) % 10) + 1;
+    // Two rest weeks per 10-week block for recovery
+    if (blockWk === 9) continue;
+    // Slightly thin out the calendar when there are few sources
+    if (sources.length === 1 && sources[0].label === "CLU" && tier === "Club" && w % 2 !== 0) continue;
+
+    const src = sources[cursor % sources.length];
+    cursor++;
+    const pick = src.pickFixture();
     list.push({
       id: id(),
       week: w,
       year,
-      competition,
-      opponent,
-      format,
+      competition: pick.competition,
+      opponent: pick.opponent,
+      format: pick.format,
       venue: Math.random() < 0.5 ? "Home" : "Away",
       played: false,
     });
@@ -222,7 +239,7 @@ export function newCareer(input: {
     leagues: createLeaguesState(2026),
     offerYears: [],
     contractValue: 0,
-    contractSlots: { franchise: null, nation: null },
+    contractSlots: { franchises: [], nation: null, nationA: null },
     tournaments: { active: newTournamentsForYear(2026), history: [] },
     matchInProgress: null,
   };

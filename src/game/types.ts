@@ -144,9 +144,31 @@ export interface SaveGame {
   matchInProgress?: import("./matchSave").MatchSnapshot | null;
 }
 
+export interface FranchiseSlot { team: string; league: "IPL" | "BBL" | "PSL" | "County"; expiresYear: number }
+export interface NationSlot { team: string; expiresYear: number }
+
 export interface ContractSlots {
-  franchise: { team: string; league: "IPL" | "BBL" | "PSL" | "County"; expiresYear: number } | null;
-  nation: { team: string; expiresYear: number } | null;
+  // Legacy single-slot fields (kept for backward compat with old saves)
+  franchise?: FranchiseSlot | null;
+  nation?: NationSlot | null;
+  // New multi-slot fields
+  franchises?: FranchiseSlot[];
+  nationA?: NationSlot | null;
+}
+
+export function normalizeSlots(cs: ContractSlots | undefined | null): {
+  franchises: FranchiseSlot[];
+  nation: NationSlot | null;
+  nationA: NationSlot | null;
+} {
+  if (!cs) return { franchises: [], nation: null, nationA: null };
+  const franchises = [...(cs.franchises ?? [])];
+  if (cs.franchise && !franchises.some((f) => f.team === cs.franchise!.team)) {
+    franchises.push(cs.franchise);
+  }
+  const nation = cs.nation ?? null;
+  const nationA = cs.nationA ?? null;
+  return { franchises, nation, nationA };
 }
 
 // Match-screen types

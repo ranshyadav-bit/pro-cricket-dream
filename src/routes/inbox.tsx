@@ -42,18 +42,34 @@ function Inbox() {
     if (!msg.offer || !save) return;
     const o = msg.offer;
     const earnings = basePrice + signingBonus;
-    const cs = save.contractSlots ?? { franchise: null, nation: null };
+    const cs = save.contractSlots ?? {};
     const isFranchise = !!o.league;
-    const isNation = o.tier === "International" || o.tier === "National A";
+    const isInternational = o.tier === "International";
+    const isNationalA = o.tier === "National A";
+    const existingFranchises = [...(cs.franchises ?? [])];
+    // Migrate legacy single-franchise slot into the array if present
+    if (cs.franchise && !existingFranchises.some((f) => f.team === cs.franchise!.team)) {
+      existingFranchises.push(cs.franchise);
+    }
     const updatedSlots = { ...cs };
     if (isFranchise && o.league) {
-      updatedSlots.franchise = { team: o.fromTeam, league: o.league, expiresYear: save.year + o.durationYears };
+      updatedSlots.franchises = [
+        ...existingFranchises.filter((f) => f.league !== o.league),
+        { team: o.fromTeam, league: o.league, expiresYear: save.year + o.durationYears },
+      ];
+      updatedSlots.franchise = null; // legacy slot retired
+    } else {
+      updatedSlots.franchises = existingFranchises;
     }
-    if (isNation) {
+    if (isInternational) {
       updatedSlots.nation = { team: o.fromTeam, expiresYear: save.year + o.durationYears };
     }
-    const newTeam = isFranchise || isNation ? o.fromTeam : save.player.team;
-    const newTier = isFranchise ? "Franchise T20" : isNation ? o.tier : save.player.tier;
+    if (isNationalA) {
+      updatedSlots.nationA = { team: o.fromTeam, expiresYear: save.year + o.durationYears };
+    }
+    // Player's "primary team" follows the most recent signing (used for hub display)
+    const newTeam = isFranchise || isInternational || isNationalA ? o.fromTeam : save.player.team;
+    const newTier = isFranchise ? "Franchise T20" : isInternational ? "International" : isNationalA ? "National A" : save.player.tier;
 
     const updatedPlayer = {
       ...save.player,
@@ -62,16 +78,16 @@ function Inbox() {
       cash: save.player.cash + earnings,
       morale: Math.min(100, save.player.morale + 8),
     };
-    // Regenerate future fixtures for the new tier (preserve already-played ones)
+    // Regenerate future fixtures using ALL active contracts (mixed schedule)
     const regenerated = [
       ...save.fixtures.filter((f) => f.played),
-      ...generateFixtures(save.year, newTier, updatedPlayer).filter((f) => f.week >= save.week),
+      ...generateFixtures(save.year, newTier, updatedPlayer, updatedSlots).filter((f) => f.week >= save.week),
     ];
     const next: SaveGame = {
       ...save,
       player: updatedPlayer,
       fixtures: regenerated,
-      contractValue: earnings,
+      contractValue: (save.contractValue ?? 0) + earnings,
       contractSlots: updatedSlots,
       inbox: save.inbox.map((m) =>
         m.id === msg.id

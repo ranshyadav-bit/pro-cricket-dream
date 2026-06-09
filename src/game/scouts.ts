@@ -1,14 +1,40 @@
 // Scout system — after a strong individual match, an international or league scout
-// may issue an inbox offer. 20% base, scaled by performance grade.
+// may issue an inbox offer. Probability is performance-driven (see scoutChance).
 
 import type { ContractOffer } from "./contracts";
 import { LEAGUE_BY_ID } from "./rosters";
 import { overallRating } from "./rating";
-import type { InboxMessage, Player, SaveGame } from "./types";
+import { normalizeSlots, type InboxMessage, type Player, type SaveGame } from "./types";
 
 export type ScoutGrade = "A" | "B" | "C" | "D";
 
-const SCOUT_APPEARANCE_RATE = 0.2;
+// Performance-driven scout appearance chance.
+// Batting: duck=0, ≤10=5%, 50=25%, 100=55%, 200+=100% (linear between checkpoints).
+// Bowling: wicketless=0, 1w=5%, 2w=15%, 3w=35%, 4w=60%, 5w+=100%.
+// The higher of the two chances wins.
+export function scoutChance(perf: { runs: number; balls: number; wickets: number; runsConceded: number; ballsBowled: number; out: boolean }): number {
+  let batP = 0;
+  const batted = perf.balls > 0 || perf.out || perf.runs > 0;
+  if (batted) {
+    const r = perf.runs;
+    if (r >= 200) batP = 1;
+    else if (r >= 100) batP = 0.55 + ((r - 100) / 100) * 0.45;
+    else if (r >= 50) batP = 0.25 + ((r - 50) / 50) * 0.30;
+    else if (r > 10) batP = 0.05 + ((r - 10) / 40) * 0.20;
+    else if (r > 0) batP = 0.05 * (r / 10);
+  }
+  let bowlP = 0;
+  if (perf.ballsBowled > 0) {
+    if (perf.wickets >= 5) bowlP = 1;
+    else if (perf.wickets === 4) bowlP = 0.60;
+    else if (perf.wickets === 3) bowlP = 0.35;
+    else if (perf.wickets === 2) bowlP = 0.15;
+    else if (perf.wickets === 1) bowlP = 0.05;
+    else bowlP = 0;
+  }
+  return Math.max(batP, bowlP);
+}
+
 
 export function gradeMatch(perf: { runs: number; balls: number; wickets: number; runsConceded: number; ballsBowled: number; out: boolean }): ScoutGrade {
   let score = 0;
@@ -48,12 +74,13 @@ export function generateScoutOffer(save: SaveGame, grade: ScoutGrade): ContractO
   const rating = overallRating(save.player);
   const player = save.player;
   const factor = grade === "A" ? 1.6 : grade === "B" ? 1.2 : grade === "C" ? 0.9 : 0.7;
-  const contractSlots = save.contractSlots ?? { franchise: null, nation: null };
-  const hasNationSlot = !!contractSlots.nation;
-  const hasFranchiseSlot = !!contractSlots.franchise;
+  const slots = normalizeSlots(save.contractSlots);
+  const hasNationSlot = !!slots.nation;
+  const hasNationASlot = !!slots.nationA;
+  const signedLeagues = new Set(slots.franchises.map((f) => f.league));
   const offers: ContractOffer[] = [];
 
-  if (!hasNationSlot && rating >= 60) {
+  if (!hasNationASlot && rating >= 60) {
     const value = scaledNationalValue(rating, factor * 0.8);
     offers.push({
       id: makeId(),
@@ -109,9 +136,10 @@ export function generateScoutOffer(save: SaveGame, grade: ScoutGrade): ContractO
     });
   }
 
-  if (!hasFranchiseSlot && rating >= 70) {
-    const leagues: Array<"IPL" | "BBL" | "PSL"> = ["IPL", "BBL", "PSL"];
-    for (const league of leagues) {
+  if (rating >= 70) {
+    const allLeagues: Array<"IPL" | "BBL" | "PSL"> = ["IPL", "BBL", "PSL"];
+    const availableLeagues = allLeagues.filter((l) => !signedLeagues.has(l));
+    for (const league of availableLeagues) {
       const teams = LEAGUE_BY_ID[league];
       const team = randomFromArr(teams);
       let base: number;
@@ -184,7 +212,9 @@ export function maybeScoutOffer(
   const grade = gradeMatch(perf);
   const offer = generateScoutOffer(save, grade);
   if (!offer) return null;
-  if (Math.random() > SCOUT_APPEARANCE_RATE) return null;
+  const chance = scoutChance(perf);
+  if (chance <= 0) return null;
+  if (Math.random() > chance) return null;
   return buildScoutInboxMessage(save.week, save.year, offer);
 }
 
@@ -228,16 +258,22 @@ export function maybeCaptainPromotion(save: SaveGame): InboxMessage | null {
   };
 }
 
-// Helpers used by inbox UI to determine if an offer is allowed under "1 franchise + 1 nation" rule
-export function offerSlotConflict(save: SaveGame, offer: { league?: "IPL" | "BBL" | "PSL" | "County"; tier: Player["tier"] }): string | null {
-  const cs = save.contractSlots ?? { franchise: null, nation: null };
-  const isFranchise = !!offer.league && offer.league !== "County";
-  const isNation = offer.tier === "International" || offer.tier === "National A";
-  if (isFranchise && cs.franchise) {
-    return `You're already contracted to ${cs.franchise.team} (${cs.franchise.league}). Decline or wait for it to expire.`;
+// Multi-slot rules: one contract per franchise league, one national team, one National A.
+// You CAN hold an IPL + a BBL + a PSL + a County + a national + a National A side-by-side.
+export function offerSlotConflict(save: SaveGame, offer: { league?: "IPL" | "BBL" | "PSL" | "County"; tier: Player["tier"]; fromTeam?: string }): string | null {
+  const slots = normalizeSlots(save.contractSlots);
+  const isFranchise = !!offer.league;
+  const isNationalA = offer.tier === "National A";
+  const isInternational = offer.tier === "International";
+  if (isFranchise && offer.league) {
+    const existing = slots.franchises.find((f) => f.league === offer.league);
+    if (existing) return `You're already contracted to ${existing.team} in the ${offer.league}. Decline or wait for it to expire.`;
   }
-  if (isNation && cs.nation) {
-    return `You're already on a national contract with ${cs.nation.team}.`;
+  if (isInternational && slots.nation) {
+    return `You're already on a national contract with ${slots.nation.team}.`;
+  }
+  if (isNationalA && slots.nationA) {
+    return `You're already on a National A contract with ${slots.nationA.team}.`;
   }
   return null;
 }

@@ -10,7 +10,7 @@ function ensureDerived(save: SaveGame): SaveGame {
   }
   if (!save.offerYears) save.offerYears = [];
   if (typeof save.contractValue !== "number") save.contractValue = 0;
-  if (!save.contractSlots) save.contractSlots = { franchise: null, nation: null };
+  if (!save.contractSlots) save.contractSlots = { franchises: [], nation: null, nationA: null };
   if (!save.tournaments) save.tournaments = { active: newTournamentsForYear(save.year), history: [] };
   if (save.matchInProgress === undefined) save.matchInProgress = null;
   return save;
