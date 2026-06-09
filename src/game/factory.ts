@@ -1,5 +1,6 @@
 import type {
   CareerStats,
+  ContractSlots,
   Fixture,
   InboxMessage,
   Nation,
@@ -8,9 +9,11 @@ import type {
   SaveGame,
   Skills,
 } from "./types";
+import { normalizeSlots } from "./types";
 import { createLeaguesState } from "./leagues";
 import { newTournamentsForYear } from "./tournaments";
 import { findLeagueForTeam, pickClubOpponent, pickInternationalOpponent, pickLeagueOpponent, pickNationalAOpponent } from "./opponents";
+import type { LeagueId } from "./rosters";
 
 const NATION_CLUBS: Record<Nation, string[]> = {
   Australia: ["Sydney Strikers CC", "Melbourne Suburban CC", "Perth Coastal CC"],
