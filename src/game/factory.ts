@@ -239,7 +239,7 @@ export function newCareer(input: {
     leagues: createLeaguesState(2026),
     offerYears: [],
     contractValue: 0,
-    contractSlots: { franchise: null, nation: null },
+    contractSlots: { franchises: [], nation: null, nationA: null },
     tournaments: { active: newTournamentsForYear(2026), history: [] },
     matchInProgress: null,
   };
