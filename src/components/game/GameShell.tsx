@@ -7,6 +7,7 @@ const NAV = [
   { to: "/hub", label: "Hub" },
   { to: "/training", label: "Training" },
   { to: "/fixtures", label: "Fixtures" },
+  { to: "/schedule", label: "Priorities" },
   { to: "/leagues", label: "Leagues" },
   { to: "/tournaments", label: "ICC" },
   { to: "/stats", label: "Stats" },
