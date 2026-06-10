@@ -81,7 +81,7 @@ function Inbox() {
     // Regenerate future fixtures using ALL active contracts (mixed schedule)
     const regenerated = [
       ...save.fixtures.filter((f) => f.played),
-      ...generateFixtures(save.year, newTier, updatedPlayer, updatedSlots).filter((f) => f.week >= save.week),
+      ...generateFixtures(save.year, newTier, updatedPlayer, updatedSlots, save.schedulePriorities, save.tournaments).filter((f) => f.week >= save.week),
     ];
     const next: SaveGame = {
       ...save,
