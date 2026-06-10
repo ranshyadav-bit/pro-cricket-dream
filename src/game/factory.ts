@@ -87,98 +87,161 @@ function pickInternationalFormat(): "T20" | "ODI" | "Test" {
   return "Test";
 }
 
-export function generateFixtures(year: number, tier: Player["tier"], player?: Player, slots?: ContractSlots | null): Fixture[] {
+export function generateFixtures(
+  year: number,
+  tier: Player["tier"],
+  player?: Player,
+  slots?: ContractSlots | null,
+  priorities?: string[] | null,
+  tournaments?: import("./tournaments").TournamentsState | null,
+): Fixture[] {
   const list: Fixture[] = [];
   const playerTeam = player?.team ?? "";
   const playerLeague = playerTeam ? findLeagueForTeam(playerTeam) : null;
   const norm = normalizeSlots(slots);
-
-  // Build commitment sources from active contracts. Each source produces one fixture
-  // when chosen for a week. We weave them so the player can play IPL one week, an
-  // India A tour the next, an ODI bilateral the next, etc.
-  type Source = {
-    label: "FRA" | "NAT" | "NA" | "CLU";
-    pickFixture: () => { competition: string; opponent: string; format: Fixture["format"] };
+  const prioList = (priorities && priorities.length > 0)
+    ? priorities
+    : ["ICC", "International", "National A", "IPL", "BBL", "PSL", "County", "Club"];
+  const rank = (key: string): number => {
+    const i = prioList.indexOf(key);
+    return i < 0 ? 999 : i;
   };
-  const sources: Source[] = [];
+
+  // Build commitment sources from active contracts. Each source can propose a
+  // fixture per week (probabilistically). When multiple sources propose for the
+  // same week, the user's priority order picks the winner — so e.g. an ICC
+  // World Cup week overrides an IPL week if the user ranks ICC above IPL.
+  type Candidate = {
+    key: string;
+    build: () => Omit<Fixture, "id" | "week" | "year" | "played"> | null;
+    // Per-week chance this source has a fixture
+    prob: number;
+  };
+  const sources: Array<{ key: string; prob: number; pickFixture: () => ReturnType<Candidate["build"]> }> = [];
 
   for (const f of norm.franchises) {
     const lg = f.league as LeagueId;
     sources.push({
-      label: "FRA",
+      key: f.league,
+      prob: 0.7,
       pickFixture: () => ({
         competition: f.league,
         opponent: pickLeagueOpponent(f.team, lg),
         format: f.league === "County" ? (Math.random() < 0.5 ? "Test" : "T20") : "T20",
+        venue: Math.random() < 0.5 ? "Home" : "Away",
       }),
     });
   }
   if (norm.nation && player) {
     sources.push({
-      label: "NAT",
+      key: "International",
+      prob: 0.7,
       pickFixture: () => ({
         competition: `${player.nation} Tour`,
         opponent: pickInternationalOpponent(player),
         format: pickInternationalFormat(),
+        venue: Math.random() < 0.5 ? "Home" : "Away",
       }),
     });
   }
   if (norm.nationA && player) {
     sources.push({
-      label: "NA",
+      key: "National A",
+      prob: 0.7,
       pickFixture: () => ({
         competition: `${player.nation} A Tour`,
         opponent: pickNationalAOpponent(player),
         format: Math.random() < 0.55 ? "ODI" : "T20",
+        venue: Math.random() < 0.5 ? "Home" : "Away",
       }),
     });
   }
-  // Legacy fallback when the player has no signed contracts at all:
-  // derive a single source from the tier/team (original behaviour).
+  // ICC tournament source: when an active tournament covers a week, the player's
+  // nation is treated as participating and a representative fixture is generated.
+  // This guarantees World Cup weeks beat club/franchise commitments when the
+  // user ranks "ICC" highest.
+  const iccWindows: Array<{ startWeek: number; endWeek: number; comp: string; format: Fixture["format"] }> = [];
+  if (tournaments && player) {
+    for (const t of tournaments.active) {
+      if (t.year !== year || t.finished) continue;
+      iccWindows.push({
+        startWeek: t.startWeek,
+        endWeek: t.endWeek,
+        comp: t.name,
+        format: (t.format === "Test" ? "Test" : t.format === "ODI" ? "ODI" : "T20"),
+      });
+    }
+  }
+
+  // Legacy fallback when the player has no signed contracts at all
   if (sources.length === 0) {
     sources.push({
-      label: "CLU",
+      key: tier === "Club" ? "Club" : "Club",
+      prob: 0.55,
       pickFixture: () => {
         if (tier === "Club") {
-          return { competition: "Club Premier League", opponent: pickClubOpponent(), format: "Club" };
+          return { competition: "Club Premier League", opponent: pickClubOpponent(), format: "Club", venue: Math.random() < 0.5 ? "Home" : "Away" };
         }
         if (tier === "Domestic" || tier === "National A") {
           const r = Math.random();
-          if (r < 0.4) return { competition: "T20 Blast", opponent: pickClubOpponent(), format: "T20" };
-          if (r < 0.75) return { competition: "State Shield", opponent: pickClubOpponent(), format: "Club" };
-          return { competition: "County Championship", opponent: pickClubOpponent(), format: "Test" };
+          if (r < 0.4) return { competition: "T20 Blast", opponent: pickClubOpponent(), format: "T20", venue: Math.random() < 0.5 ? "Home" : "Away" };
+          if (r < 0.75) return { competition: "State Shield", opponent: pickClubOpponent(), format: "Club", venue: Math.random() < 0.5 ? "Home" : "Away" };
+          return { competition: "County Championship", opponent: pickClubOpponent(), format: "Test", venue: Math.random() < 0.5 ? "Home" : "Away" };
         }
         if (tier === "International" && player) {
-          return { competition: `${player.nation} Tour`, opponent: pickInternationalOpponent(player), format: pickInternationalFormat() };
+          return { competition: `${player.nation} Tour`, opponent: pickInternationalOpponent(player), format: pickInternationalFormat(), venue: Math.random() < 0.5 ? "Home" : "Away" };
         }
         if (tier === "Franchise T20" && playerLeague) {
-          return { competition: playerLeague, opponent: pickLeagueOpponent(playerTeam, playerLeague), format: "T20" };
+          return { competition: playerLeague, opponent: pickLeagueOpponent(playerTeam, playerLeague), format: "T20", venue: Math.random() < 0.5 ? "Home" : "Away" };
         }
-        return { competition: "Friendly", opponent: pickClubOpponent(), format: "T20" };
+        return { competition: "Friendly", opponent: pickClubOpponent(), format: "T20", venue: Math.random() < 0.5 ? "Home" : "Away" };
       },
     });
   }
 
-  // 52-week schedule. Walk every week, cycle through sources, leave rest weeks.
-  let cursor = 0;
+  // 52-week schedule. Each week, collect every source's candidate, then keep
+  // the one with the best priority rank.
   for (let w = 2; w <= 51; w++) {
     const blockWk = ((w - 1) % 10) + 1;
-    // Two rest weeks per 10-week block for recovery
-    if (blockWk === 9) continue;
-    // Slightly thin out the calendar when there are few sources
-    if (sources.length === 1 && sources[0].label === "CLU" && tier === "Club" && w % 2 !== 0) continue;
+    if (blockWk === 9) continue; // rest week
 
-    const src = sources[cursor % sources.length];
-    cursor++;
-    const pick = src.pickFixture();
+    type Pick = { key: string; data: NonNullable<ReturnType<Candidate["build"]>> };
+    const candidates: Pick[] = [];
+
+    // ICC candidate (deterministic when window covers this week)
+    for (const win of iccWindows) {
+      if (w >= win.startWeek && w <= win.endWeek && player) {
+        candidates.push({
+          key: "ICC",
+          data: {
+            competition: win.comp,
+            opponent: pickInternationalOpponent(player),
+            format: win.format,
+            venue: Math.random() < 0.5 ? "Home" : "Neutral",
+          },
+        });
+        break;
+      }
+    }
+
+    for (const s of sources) {
+      if (Math.random() > s.prob) continue;
+      const data = s.pickFixture();
+      if (!data) continue;
+      candidates.push({ key: s.key, data });
+    }
+
+    if (candidates.length === 0) continue;
+    candidates.sort((a, b) => rank(a.key) - rank(b.key));
+    const winner = candidates[0];
     list.push({
       id: id(),
       week: w,
       year,
-      competition: pick.competition,
-      opponent: pick.opponent,
-      format: pick.format,
-      venue: Math.random() < 0.5 ? "Home" : "Away",
+      competition: winner.data.competition,
+      opponent: winner.data.opponent,
+      format: winner.data.format,
+      venue: winner.data.venue,
       played: false,
     });
   }
