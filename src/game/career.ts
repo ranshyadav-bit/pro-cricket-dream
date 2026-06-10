@@ -312,7 +312,7 @@ export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean; skipAuto
     next.week = 1;
     next.year += 1;
     next.seasonStats = emptyStats();
-    next.fixtures = generateFixtures(next.year, next.player.tier, next.player, next.contractSlots);
+    next.fixtures = generateFixtures(next.year, next.player.tier, next.player, next.contractSlots, next.schedulePriorities, next.tournaments);
     next.player = { ...next.player, age: Math.round(next.player.age + 0.01) };
     next.leagues = createLeaguesState(next.year);
     // Generate new tournaments for the year
