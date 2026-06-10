@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TrainingRouteImport } from './routes/training'
 import { Route as TournamentsRouteImport } from './routes/tournaments'
 import { Route as StatsRouteImport } from './routes/stats'
+import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as NewRouteImport } from './routes/new'
 import { Route as MatchRouteImport } from './routes/match'
 import { Route as LeaguesRouteImport } from './routes/leagues'
@@ -34,6 +35,11 @@ const TournamentsRoute = TournamentsRouteImport.update({
 const StatsRoute = StatsRouteImport.update({
   id: '/stats',
   path: '/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScheduleRoute = ScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewRoute = NewRouteImport.update({
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/leagues': typeof LeaguesRoute
   '/match': typeof MatchRoute
   '/new': typeof NewRoute
+  '/schedule': typeof ScheduleRoute
   '/stats': typeof StatsRoute
   '/tournaments': typeof TournamentsRoute
   '/training': typeof TrainingRoute
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/leagues': typeof LeaguesRoute
   '/match': typeof MatchRoute
   '/new': typeof NewRoute
+  '/schedule': typeof ScheduleRoute
   '/stats': typeof StatsRoute
   '/tournaments': typeof TournamentsRoute
   '/training': typeof TrainingRoute
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   '/leagues': typeof LeaguesRoute
   '/match': typeof MatchRoute
   '/new': typeof NewRoute
+  '/schedule': typeof ScheduleRoute
   '/stats': typeof StatsRoute
   '/tournaments': typeof TournamentsRoute
   '/training': typeof TrainingRoute
@@ -128,6 +137,7 @@ export interface FileRouteTypes {
     | '/leagues'
     | '/match'
     | '/new'
+    | '/schedule'
     | '/stats'
     | '/tournaments'
     | '/training'
@@ -141,6 +151,7 @@ export interface FileRouteTypes {
     | '/leagues'
     | '/match'
     | '/new'
+    | '/schedule'
     | '/stats'
     | '/tournaments'
     | '/training'
@@ -154,6 +165,7 @@ export interface FileRouteTypes {
     | '/leagues'
     | '/match'
     | '/new'
+    | '/schedule'
     | '/stats'
     | '/tournaments'
     | '/training'
@@ -168,6 +180,7 @@ export interface RootRouteChildren {
   LeaguesRoute: typeof LeaguesRoute
   MatchRoute: typeof MatchRoute
   NewRoute: typeof NewRoute
+  ScheduleRoute: typeof ScheduleRoute
   StatsRoute: typeof StatsRoute
   TournamentsRoute: typeof TournamentsRoute
   TrainingRoute: typeof TrainingRoute
@@ -194,6 +207,13 @@ declare module '@tanstack/react-router' {
       path: '/stats'
       fullPath: '/stats'
       preLoaderRoute: typeof StatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/schedule': {
+      id: '/schedule'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof ScheduleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/new': {
@@ -264,6 +284,7 @@ const rootRouteChildren: RootRouteChildren = {
   LeaguesRoute: LeaguesRoute,
   MatchRoute: MatchRoute,
   NewRoute: NewRoute,
+  ScheduleRoute: ScheduleRoute,
   StatsRoute: StatsRoute,
   TournamentsRoute: TournamentsRoute,
   TrainingRoute: TrainingRoute,
@@ -271,3 +292,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
