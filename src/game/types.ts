@@ -138,6 +138,9 @@ export interface SaveGame {
   contractValue?: number;
   // Contract slots: 1 franchise + 1 nation max
   contractSlots?: ContractSlots;
+  // Ordered list of competition keys, highest priority first. Used to resolve
+  // fixture overlaps (e.g. ICC World Cup week vs IPL week).
+  schedulePriorities?: string[];
   // ICC tournament state (T20 WC, ODI WC, WTC)
   tournaments?: import("./tournaments").TournamentsState;
   // Mid-match resume snapshot (one match at a time)
