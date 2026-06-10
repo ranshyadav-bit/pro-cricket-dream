@@ -174,6 +174,38 @@ export function normalizeSlots(cs: ContractSlots | undefined | null): {
   return { franchises, nation, nationA };
 }
 
+// Default fixture-priority order (top = highest priority). Resolves which
+// competition wins when two could be scheduled in the same week.
+export const DEFAULT_SCHEDULE_PRIORITIES: string[] = [
+  "ICC",
+  "International",
+  "National A",
+  "IPL",
+  "BBL",
+  "PSL",
+  "County",
+  "Club",
+];
+
+export const PRIORITY_LABELS: Record<string, string> = {
+  ICC: "ICC Tournaments (World Cups, WTC)",
+  International: "International Tour (your nation)",
+  "National A": "National A Tour",
+  IPL: "Indian Premier League",
+  BBL: "Big Bash League",
+  PSL: "Pakistan Super League",
+  County: "County Championship",
+  Club: "Club / Friendlies",
+};
+
+export function getSchedulePriorities(cs?: string[] | null): string[] {
+  if (!cs || cs.length === 0) return [...DEFAULT_SCHEDULE_PRIORITIES];
+  // Merge in any missing defaults at the end so new keys are honoured.
+  const out = [...cs];
+  for (const k of DEFAULT_SCHEDULE_PRIORITIES) if (!out.includes(k)) out.push(k);
+  return out;
+}
+
 // Match-screen types
 export type ShotType =
   | "Leave"
