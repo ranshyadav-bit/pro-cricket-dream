@@ -80,7 +80,7 @@ export function generateScoutOffer(save: SaveGame, grade: ScoutGrade): ContractO
   const signedLeagues = new Set(slots.franchises.map((f) => f.league));
   const offers: ContractOffer[] = [];
 
-  if (!hasNationASlot && rating >= 60) {
+  if (!hasNationASlot) {
     const value = scaledNationalValue(rating, factor * 0.8);
     offers.push({
       id: makeId(),
@@ -94,7 +94,7 @@ export function generateScoutOffer(save: SaveGame, grade: ScoutGrade): ContractO
     });
   }
 
-  if (!hasNationSlot && rating >= 76 && grade !== "D") {
+  if (!hasNationSlot && rating >= 68 && grade !== "D") {
     const value = scaledNationalValue(rating, factor);
     offers.push({
       id: makeId(),
@@ -108,7 +108,7 @@ export function generateScoutOffer(save: SaveGame, grade: ScoutGrade): ContractO
     });
   }
 
-  if (!hasNationSlot && rating >= 80 && (grade === "A" || grade === "B" || Math.random() < 0.5)) {
+  if (!hasNationSlot && rating >= 72 && (grade === "A" || grade === "B" || Math.random() < 0.5)) {
     const value = scaledNationalValue(rating, factor * 1.08);
     offers.push({
       id: makeId(),
@@ -122,7 +122,7 @@ export function generateScoutOffer(save: SaveGame, grade: ScoutGrade): ContractO
     });
   }
 
-  if (!hasNationSlot && rating >= 82 && (grade === "A" || grade === "B")) {
+  if (!hasNationSlot && rating >= 74 && (grade === "A" || grade === "B")) {
     const value = scaledNationalValue(rating, factor * 1.15);
     offers.push({
       id: makeId(),
@@ -136,7 +136,7 @@ export function generateScoutOffer(save: SaveGame, grade: ScoutGrade): ContractO
     });
   }
 
-  if (rating >= 70) {
+  if (rating >= 62 || grade === "A" || grade === "B") {
     const allLeagues: Array<"IPL" | "BBL" | "PSL"> = ["IPL", "BBL", "PSL"];
     const availableLeagues = allLeagues.filter((l) => !signedLeagues.has(l));
     for (const league of availableLeagues) {
@@ -146,7 +146,7 @@ export function generateScoutOffer(save: SaveGame, grade: ScoutGrade): ContractO
       if (rating >= 88) base = 1400 + (rating - 88) * 220;
       else if (rating >= 80) base = 550 + (rating - 80) * 100;
       else if (rating >= 72) base = 180 + (rating - 72) * 45;
-      else base = 60 + Math.max(0, rating - 60) * 8;
+      else base = 60 + Math.max(0, rating - 55) * 8;
       base = Math.round(base * factor * (0.85 + Math.random() * 0.3));
       const bonus = Math.round(base * (0.1 + Math.random() * 0.18));
       offers.push({
@@ -163,10 +163,10 @@ export function generateScoutOffer(save: SaveGame, grade: ScoutGrade): ContractO
     }
   }
 
-  if (rating >= 64) {
+  {
     const teams = LEAGUE_BY_ID.County;
     const team = randomFromArr(teams);
-    const base = Math.round((120 + Math.max(0, rating - 60) * 22) * factor);
+    const base = Math.round((100 + Math.max(0, rating - 50) * 22) * factor);
     offers.push({
       id: makeId(),
       fromTeam: team.name,
