@@ -89,6 +89,8 @@ export interface Fixture {
   format: "T20" | "ODI" | "Test" | "Club";
   venue: "Home" | "Away" | "Neutral";
   played: boolean;
+  /** Team the player represents in this fixture (franchise / nation / nation A). */
+  team?: string;
 }
 
 export interface InboxMessage {
