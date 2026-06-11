@@ -129,10 +129,12 @@ export function generateFixtures(
         opponent: pickLeagueOpponent(f.team, lg),
         format: f.league === "County" ? (Math.random() < 0.5 ? "Test" : "T20") : "T20",
         venue: Math.random() < 0.5 ? "Home" : "Away",
+        team: f.team,
       }),
     });
   }
   if (norm.nation && player) {
+    const natTeam = norm.nation.team;
     sources.push({
       key: "International",
       prob: 0.7,
@@ -141,10 +143,12 @@ export function generateFixtures(
         opponent: pickInternationalOpponent(player),
         format: pickInternationalFormat(),
         venue: Math.random() < 0.5 ? "Home" : "Away",
+        team: natTeam,
       }),
     });
   }
   if (norm.nationA && player) {
+    const natATeam = norm.nationA.team;
     sources.push({
       key: "National A",
       prob: 0.7,
@@ -153,6 +157,7 @@ export function generateFixtures(
         opponent: pickNationalAOpponent(player),
         format: Math.random() < 0.55 ? "ODI" : "T20",
         venue: Math.random() < 0.5 ? "Home" : "Away",
+        team: natATeam,
       }),
     });
   }
@@ -179,22 +184,23 @@ export function generateFixtures(
       key: tier === "Club" ? "Club" : "Club",
       prob: 0.55,
       pickFixture: () => {
+        const baseTeam = playerTeam;
         if (tier === "Club") {
-          return { competition: "Club Premier League", opponent: pickClubOpponent(), format: "Club", venue: Math.random() < 0.5 ? "Home" : "Away" };
+          return { competition: "Club Premier League", opponent: pickClubOpponent(), format: "Club", venue: Math.random() < 0.5 ? "Home" : "Away", team: baseTeam };
         }
         if (tier === "Domestic" || tier === "National A") {
           const r = Math.random();
-          if (r < 0.4) return { competition: "T20 Blast", opponent: pickClubOpponent(), format: "T20", venue: Math.random() < 0.5 ? "Home" : "Away" };
-          if (r < 0.75) return { competition: "State Shield", opponent: pickClubOpponent(), format: "Club", venue: Math.random() < 0.5 ? "Home" : "Away" };
-          return { competition: "County Championship", opponent: pickClubOpponent(), format: "Test", venue: Math.random() < 0.5 ? "Home" : "Away" };
+          if (r < 0.4) return { competition: "T20 Blast", opponent: pickClubOpponent(), format: "T20", venue: Math.random() < 0.5 ? "Home" : "Away", team: baseTeam };
+          if (r < 0.75) return { competition: "State Shield", opponent: pickClubOpponent(), format: "Club", venue: Math.random() < 0.5 ? "Home" : "Away", team: baseTeam };
+          return { competition: "County Championship", opponent: pickClubOpponent(), format: "Test", venue: Math.random() < 0.5 ? "Home" : "Away", team: baseTeam };
         }
         if (tier === "International" && player) {
-          return { competition: `${player.nation} Tour`, opponent: pickInternationalOpponent(player), format: pickInternationalFormat(), venue: Math.random() < 0.5 ? "Home" : "Away" };
+          return { competition: `${player.nation} Tour`, opponent: pickInternationalOpponent(player), format: pickInternationalFormat(), venue: Math.random() < 0.5 ? "Home" : "Away", team: baseTeam };
         }
         if (tier === "Franchise T20" && playerLeague) {
-          return { competition: playerLeague, opponent: pickLeagueOpponent(playerTeam, playerLeague), format: "T20", venue: Math.random() < 0.5 ? "Home" : "Away" };
+          return { competition: playerLeague, opponent: pickLeagueOpponent(playerTeam, playerLeague), format: "T20", venue: Math.random() < 0.5 ? "Home" : "Away", team: baseTeam };
         }
-        return { competition: "Friendly", opponent: pickClubOpponent(), format: "T20", venue: Math.random() < 0.5 ? "Home" : "Away" };
+        return { competition: "Friendly", opponent: pickClubOpponent(), format: "T20", venue: Math.random() < 0.5 ? "Home" : "Away", team: baseTeam };
       },
     });
   }
@@ -218,6 +224,7 @@ export function generateFixtures(
             opponent: pickInternationalOpponent(player),
             format: win.format,
             venue: Math.random() < 0.5 ? "Home" : "Neutral",
+            team: `${player.nation} National Team`,
           },
         });
         break;
@@ -242,6 +249,7 @@ export function generateFixtures(
       opponent: winner.data.opponent,
       format: winner.data.format,
       venue: winner.data.venue,
+      team: (winner.data as { team?: string }).team,
       played: false,
     });
   }
