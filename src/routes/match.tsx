@@ -269,7 +269,7 @@ function MatchInner({
     : 0;
   const playerBatPos = battingPositionForRole(player.role);
 
-  const myTeam = save.player.team;
+  const myTeam = fixture.team ?? save.player.team;
   const opp = fixture.opponent;
 
   // Real squads for international/league teams; generated names for club tier
