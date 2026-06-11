@@ -224,6 +224,7 @@ export function generateFixtures(
             opponent: pickInternationalOpponent(player),
             format: win.format,
             venue: Math.random() < 0.5 ? "Home" : "Neutral",
+            team: `${player.nation} National Team`,
           },
         });
         break;
@@ -248,6 +249,7 @@ export function generateFixtures(
       opponent: winner.data.opponent,
       format: winner.data.format,
       venue: winner.data.venue,
+      team: (winner.data as { team?: string }).team,
       played: false,
     });
   }
