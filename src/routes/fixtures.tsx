@@ -38,7 +38,7 @@ function Fixtures() {
               return (
                 <li key={f.id} className={`rounded-md border p-3 ${isThisWeek ? "border-primary/40 bg-primary/5" : "border-border bg-background/30"}`}>
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-display text-sm text-foreground">vs {f.opponent}</span>
+                    <span className="text-display text-sm text-foreground">{f.team ?? save.player.team} vs {f.opponent}</span>
                     <span className="text-[10px] text-muted-foreground">W{f.week}·{f.year}</span>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">{f.competition} · {f.format} · {f.venue}</p>
