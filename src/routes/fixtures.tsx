@@ -42,7 +42,7 @@ function Fixtures() {
                     <span className="text-[10px] text-muted-foreground">W{f.week}·{f.year}</span>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">{f.competition} · {f.format} · {f.venue}</p>
-                  {isThisWeek && (
+                  {isThisWeek && !save.player.injury && (
                     <Link
                       to="/match"
                       search={{ id: f.id }}
