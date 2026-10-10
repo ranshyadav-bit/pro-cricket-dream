@@ -56,6 +56,15 @@ export interface Player {
   team: string; // current club / franchise
   perks: string[];
   retired: boolean;
+  /** Active injury — player misses all matches and training until weeksOut hits 0. */
+  injury?: Injury | null;
+}
+
+export interface Injury {
+  name: string;
+  severity: "Minor" | "Moderate" | "Serious" | "Career-Threatening";
+  weeksOut: number;
+  totalWeeks: number;
 }
 
 export interface CareerStats {
