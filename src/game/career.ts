@@ -1,4 +1,5 @@
 import type {
+  Injury,
   CareerStats,
   Fixture,
   InboxMessage,
