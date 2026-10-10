@@ -58,6 +58,12 @@ function Hub() {
           </Link>
         </div>
       )}
+      {save.player.injury && (
+        <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3">
+          <p className="text-display text-sm text-destructive">Injured: {save.player.injury.name} ({save.player.injury.severity})</p>
+          <p className="text-xs text-muted-foreground">Out for {save.player.injury.weeksOut} more week{save.player.injury.weeksOut === 1 ? "" : "s"}. Advance weeks to recover — matches are missed.</p>
+        </div>
+      )}
       {tickerMsg && (
         <div className="mb-4 rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm text-primary">
           {tickerMsg}
@@ -92,7 +98,7 @@ function Hub() {
           title="Next Fixture"
           subtitle={fixture ? `Week ${fixture.week} · ${fixture.year}` : "No fixtures scheduled"}
           action={
-            fixture && fixture.week === save.week && fixture.year === save.year ? (
+            fixture && !save.player.injury && fixture.week === save.week && fixture.year === save.year ? (
               <Link
                 to="/match"
                 search={{ id: fixture.id }}

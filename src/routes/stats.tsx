@@ -73,7 +73,7 @@ function Stats() {
         <GamePanel title="Skill Profile">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {Object.entries(save.player.skills).map(([k, v]) => (
-              <StatBox key={k} label={k} value={Math.round(v)} sub={`/${Math.min(99, save.player.potential + 2)}`} />
+              <StatBox key={k} label={k} value={Math.round(v)} sub="/100" />
             ))}
           </div>
           <p className="mt-3 text-xs text-muted-foreground">

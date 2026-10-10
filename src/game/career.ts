@@ -1,4 +1,5 @@
 import type {
+  Injury,
   CareerStats,
   Fixture,
   InboxMessage,
@@ -91,28 +92,51 @@ export const TRAINING_DRILLS: TrainingDrill[] = [
   { key: "composure", label: "Pressure Sim",         energy: 15, xp: 1.4 },
 ];
 
+export function rollInjury(drillLabel: string): Injury {
+  const r = Math.random();
+  if (r < 0.6) {
+    const w = 1 + Math.floor(Math.random() * 3);
+    return { name: `${drillLabel} strain`, severity: "Minor", weeksOut: w, totalWeeks: w };
+  }
+  if (r < 0.85) {
+    const w = 4 + Math.floor(Math.random() * 9);
+    return { name: `${drillLabel} tear`, severity: "Moderate", weeksOut: w, totalWeeks: w };
+  }
+  if (r < 0.96) {
+    const w = 40 + Math.floor(Math.random() * 20);
+    return { name: `Stress fracture (${drillLabel})`, severity: "Serious", weeksOut: w, totalWeeks: w };
+  }
+  const w = 90 + Math.floor(Math.random() * 20);
+  return { name: `Ruptured ligament (${drillLabel})`, severity: "Career-Threatening", weeksOut: w, totalWeeks: w };
+}
+
 export function applyTraining(save: SaveGame, drillKeys: string[]): {
   save: SaveGame;
   energyUsed: number;
   injuries: string[];
 } {
+  if (save.player.injury) {
+    return { save, energyUsed: 0, injuries: [`You're injured (${save.player.injury.name}) — no training until recovered.`] };
+  }
   let skills = { ...save.player.skills };
   let energyUsed = 0;
   const injuries: string[] = [];
+  let injury: Injury | null = null;
   for (const k of drillKeys) {
     const drill = TRAINING_DRILLS.find((d) => d.key === k);
     if (!drill) continue;
     energyUsed += drill.energy;
     skills = trainSkill(skills, drill.key, drill.xp, save.player.potential);
-    const risk = (energyUsed / 100) * (1 - save.player.fitness / 100) * 0.15;
-    if (Math.random() < risk) {
-      injuries.push(`Minor ${drill.label.toLowerCase()} strain — fitness -8`);
+    const risk = 0.01 + (energyUsed / 100) * (1 - save.player.fitness / 100) * 0.15;
+    if (!injury && Math.random() < risk) {
+      injury = rollInjury(drill.label);
+      injuries.push(`INJURY: ${injury.name} (${injury.severity}) — out for ${injury.weeksOut} week${injury.weeksOut > 1 ? "s" : ""}.`);
     }
   }
   let fitness = save.player.fitness - Math.min(15, energyUsed / 8);
-  if (injuries.length > 0) fitness -= 8 * injuries.length;
+  if (injury) fitness -= 15;
   fitness = clamp(fitness, 20, 100);
-  const player: Player = { ...save.player, skills, fitness };
+  const player: Player = { ...save.player, skills, fitness, injury };
   return { save: { ...save, player }, energyUsed, injuries };
 }
 
@@ -248,7 +272,8 @@ export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean; skipAuto
   let seasonStats = { ...next.seasonStats };
 
   // Auto train/rest decision for this week (before fixture sim)
-  if (!opts.skipAuto) {
+  const injuredAtStart = !!player.injury;
+  if (!opts.skipAuto && !injuredAtStart) {
     const action = opts.restWeek ? "rest" : nextActionForWeek(next);
     if (action === "heavyTrain") {
       const trained = heavyTraining(next);
@@ -263,7 +288,32 @@ export function advanceWeek(save: SaveGame, opts: { restWeek?: boolean; skipAuto
   const fixturesNow = next.fixtures.filter(
     (f) => !f.played && f.year === next.year && f.week <= next.week,
   );
-  for (const f of fixturesNow) {
+  if (injuredAtStart) {
+    for (const f of fixturesNow) {
+      f.played = true;
+      messages.push({
+        id: makeId(), week: f.week, year: f.year, from: "Medical Team",
+        subject: `Missed vs ${f.opponent} — injured`,
+        body: `You sat out this ${f.competition} match while recovering from ${player.injury!.name}.`,
+        read: false, type: "coach",
+      });
+    }
+    const inj = player.injury!;
+    const left = inj.weeksOut - 1;
+    player = { ...player, fitness: clamp(player.fitness + 4, 20, 100) };
+    if (left <= 0) {
+      player.injury = null;
+      messages.push({
+        id: makeId(), week: next.week, year: next.year, from: "Medical Team",
+        subject: "Cleared to play",
+        body: `You've recovered from ${inj.name} after ${inj.totalWeeks} weeks. Welcome back!`,
+        read: false, type: "coach",
+      });
+    } else {
+      player.injury = { ...inj, weeksOut: left };
+    }
+  }
+  for (const f of injuredAtStart ? [] : fixturesNow) {
     const sim = simFixture(player, f);
     simmed.push({ fixture: f, result: sim });
     f.played = true;

@@ -35,7 +35,7 @@ export function trainSkill(skills: Skills, key: keyof Skills, xp: number, potent
   const next = { ...skills };
   // Diminishing returns near potential
   const current = next[key];
-  const cap = Math.min(99, potential + 2);
+  const cap = Math.min(100, potential + 5);
   if (current >= cap) return next;
   const headroom = cap - current;
   const gain = xp * (headroom / cap);

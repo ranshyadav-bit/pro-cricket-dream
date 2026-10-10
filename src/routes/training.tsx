@@ -66,6 +66,14 @@ function Training() {
         </div>
       </div>
 
+      {save.player.injury && (
+        <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3">
+          <p className="text-display text-sm text-destructive">Injured · {save.player.injury.severity}</p>
+          <p className="text-xs text-muted-foreground">
+            {save.player.injury.name} — {save.player.injury.weeksOut} of {save.player.injury.totalWeeks} weeks remaining. No training or matches until cleared.
+          </p>
+        </div>
+      )}
       {report.length > 0 && (
         <GamePanel>
           <ul className="space-y-1">
@@ -97,8 +105,8 @@ function Training() {
                       <p className={`text-display text-sm ${isPicked ? "text-primary" : "text-foreground"}`}>{d.label}</p>
                       <span className="text-[10px] text-muted-foreground">{d.energy} energy</span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground">+{d.xp} {d.key} · current {Math.round(skillVal)}</p>
-                    <div className="mt-1.5"><Bar value={skillVal} max={99} color="primary" /></div>
+                    <p className="text-[11px] text-muted-foreground">+{d.xp} {d.key} · current {Math.round(skillVal)}/100</p>
+                    <div className="mt-1.5"><Bar value={skillVal} max={100} color="primary" /></div>
                   </div>
                 </button>
               );
@@ -111,7 +119,7 @@ function Training() {
           action={
             <button
               onClick={runWeek}
-              disabled={picked.length === 0}
+              disabled={picked.length === 0 || !!save.player.injury}
               className="rounded-md bg-gradient-primary px-4 py-2 text-display text-xs text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40"
             >
               Run Training Week
@@ -137,7 +145,7 @@ function Training() {
             </ul>
           )}
           <p className="mt-4 text-[11px] text-muted-foreground">
-            Tip: Intense weeks raise injury risk if your fitness is below 70.
+            Every drill carries injury risk, higher when fitness is low. Injuries range from a couple of games to one or two full seasons.
           </p>
         </GamePanel>
       </div>
